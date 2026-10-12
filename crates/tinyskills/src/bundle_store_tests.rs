@@ -85,10 +85,9 @@ async fn erased_arc_forwarding_preserves_selectors_content_revisions_and_typed_r
         BundleStore::publish(&erased, "chosen", Some(BundleRevision(41)), &content).await?,
         BundleRevision(42)
     );
-    assert!(
-        BundleStore::list(&erased, Some("cursor"), 0)
-            .await?
-            .is_empty()
+    assert_eq!(
+        BundleStore::list(&erased, Some("cursor"), 0).await?,
+        Vec::<BundleSummary>::new()
     );
     let error = BundleStore::delete(&erased, "chosen", BundleRevision(41))
         .await
