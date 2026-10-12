@@ -69,12 +69,12 @@ fn read_document_rejects_symlinks() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn parse(yaml: &str) -> Result<SkillFrontmatter, serde_yaml::Error> {
-    serde_yaml::from_str(yaml)
+fn parse(yaml: &str) -> Result<SkillFrontmatter, serde_norway::Error> {
+    serde_norway::from_str(yaml)
 }
 
 #[test]
-fn allowed_tools_accepts_sequences_and_comma_strings() -> Result<(), serde_yaml::Error> {
+fn allowed_tools_accepts_sequences_and_comma_strings() -> Result<(), serde_norway::Error> {
     assert_eq!(
         parse("allowed-tools:\n  - Bash\n  - Read\n")?.allowed_tools,
         ["Bash", "Read"]
@@ -87,7 +87,7 @@ fn allowed_tools_accepts_sequences_and_comma_strings() -> Result<(), serde_yaml:
 }
 
 #[test]
-fn allowed_tools_trims_whitespace_and_drops_empty_tokens() -> Result<(), serde_yaml::Error> {
+fn allowed_tools_trims_whitespace_and_drops_empty_tokens() -> Result<(), serde_norway::Error> {
     assert_eq!(
         parse(r#"allowed-tools: " Bash, , Read, ""#)?.allowed_tools,
         ["Bash", "Read"]
@@ -96,7 +96,7 @@ fn allowed_tools_trims_whitespace_and_drops_empty_tokens() -> Result<(), serde_y
 }
 
 #[test]
-fn allowed_tools_accepts_aliases_and_defaults_empty() -> Result<(), serde_yaml::Error> {
+fn allowed_tools_accepts_aliases_and_defaults_empty() -> Result<(), serde_norway::Error> {
     assert_eq!(parse("tools: Bash, Read")?.allowed_tools, ["Bash", "Read"]);
     assert_eq!(
         parse("allowed_tools: Bash, Read")?.allowed_tools,

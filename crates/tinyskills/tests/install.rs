@@ -37,7 +37,7 @@ fn derives_bounded_slugs_from_id_or_name() {
     let mut metadata = HashMap::new();
     metadata.insert(
         "id".to_owned(),
-        serde_yaml::Value::String("Stable ID".to_owned()),
+        serde_norway::Value::String("Stable ID".to_owned()),
     );
     let frontmatter = SkillFrontmatter {
         name: "Display Name".to_owned(),

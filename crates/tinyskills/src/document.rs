@@ -61,7 +61,7 @@ pub fn parse_skill_str(content: &str) -> Option<(SkillFrontmatter, String, Vec<S
     }
 
     let mut warnings = Vec::new();
-    let frontmatter = serde_yaml::from_str(&yaml).unwrap_or_else(|error| {
+    let frontmatter = serde_norway::from_str(&yaml).unwrap_or_else(|error| {
         warnings.push(format!("frontmatter parse error: {error}"));
         SkillFrontmatter::default()
     });
@@ -178,7 +178,7 @@ pub(crate) fn load_document(
     let hermes = frontmatter
         .metadata
         .get("hermes")
-        .and_then(serde_yaml::Value::as_mapping);
+        .and_then(serde_norway::Value::as_mapping);
     if let Some(value) = hermes.and_then(|map| map.get("tags")) {
         tags.extend(string_sequence(value));
     }
@@ -307,7 +307,7 @@ fn metadata_string(frontmatter: &SkillFrontmatter, key: &str) -> Option<String> 
     frontmatter
         .metadata
         .get(key)
-        .and_then(serde_yaml::Value::as_str)
+        .and_then(serde_norway::Value::as_str)
         .map(str::to_owned)
 }
 
@@ -331,12 +331,12 @@ fn metadata_sequence(frontmatter: &SkillFrontmatter, key: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-fn string_sequence(value: &serde_yaml::Value) -> Vec<String> {
+fn string_sequence(value: &serde_norway::Value) -> Vec<String> {
     value
         .as_sequence()
         .into_iter()
         .flatten()
-        .filter_map(serde_yaml::Value::as_str)
+        .filter_map(serde_norway::Value::as_str)
         .map(str::to_owned)
         .collect()
 }

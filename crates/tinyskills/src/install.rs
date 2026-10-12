@@ -157,7 +157,7 @@ pub fn derive_install_slug(frontmatter: &SkillFrontmatter) -> Result<String, Ins
     let candidate = frontmatter
         .metadata
         .get("id")
-        .and_then(serde_yaml::Value::as_str)
+        .and_then(serde_norway::Value::as_str)
         .unwrap_or(&frontmatter.name);
     let mut slug = String::with_capacity(candidate.len().min(MAX_NAME_LEN + 1));
     let mut last_dash = false;

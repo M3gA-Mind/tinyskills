@@ -84,7 +84,7 @@ pub struct SkillFrontmatter {
     pub platforms: Vec<String>,
     /// Extension metadata, including version, author, and tags.
     #[serde(default)]
-    pub metadata: HashMap<String, serde_yaml::Value>,
+    pub metadata: HashMap<String, serde_norway::Value>,
     /// Non-binding tool requirements declared by the author.
     #[serde(
         default,
@@ -99,7 +99,7 @@ pub struct SkillFrontmatter {
     pub triggers: Vec<String>,
     /// Forward-compatible top-level values.
     #[serde(flatten)]
-    pub extra: HashMap<String, serde_yaml::Value>,
+    pub extra: HashMap<String, serde_norway::Value>,
 }
 
 fn deserialize_string_or_sequence<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
