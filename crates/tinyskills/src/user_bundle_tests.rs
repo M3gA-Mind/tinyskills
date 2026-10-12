@@ -173,3 +173,47 @@ fn resources_preserve_binary_empty_and_original_document_and_allow_both_document
     assert_eq!(stored.file("assets/binary"), Some([0, 255].as_slice()));
     assert_eq!(stored.file("WORKFLOW.md"), Some(b"workflow".as_slice()));
 }
+
+#[test]
+fn primary_selection_changes_digest_even_when_all_stored_files_match() {
+    let skill = UserBundle::new(
+        BundleDocument::Skill,
+        "skill".into(),
+        vec![resource("WORKFLOW.md", b"workflow")],
+        BundleLimits::default(),
+    )
+    .unwrap();
+    let workflow = UserBundle::new(
+        BundleDocument::Workflow,
+        "workflow".into(),
+        vec![resource("SKILL.md", b"skill")],
+        BundleLimits::default(),
+    )
+    .unwrap();
+    assert_eq!(skill.files(), workflow.files());
+    assert_ne!(skill.digest(), workflow.digest());
+}
+
+#[test]
+fn length_delimiters_and_file_hashes_preserve_unambiguous_original_bytes() {
+    let first = bundle(vec![resource("ab", b"c")]).unwrap();
+    let second = bundle(vec![resource("a", b"bc")]).unwrap();
+    assert_ne!(first.digest(), second.digest());
+    let empty = UserBundle::new(
+        BundleDocument::Skill,
+        String::new(),
+        Vec::new(),
+        BundleLimits {
+            max_files: 1,
+            max_file_bytes: 0,
+            max_total_bytes: 0,
+            max_path_bytes: 8,
+        },
+    )
+    .unwrap();
+    assert_eq!(empty.file("SKILL.md"), Some(b"".as_slice()));
+    assert_eq!(
+        empty.manifest()[0].digest,
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    );
+}

@@ -65,8 +65,8 @@ pub type BundleFuture<'a, T> =
 
 /// Durable publication of user bundles under already-captured authority.
 ///
-/// This is distinct from [`crate::CatalogStore`] (when `registry` is enabled),
-/// which caches remotely fetched catalog entries. Every method, including an
+/// This is distinct from the `registry` feature's `CatalogStore`, which caches
+/// remotely fetched catalog entries. Every method, including an
 /// absent read or a zero-limit list, must enforce the implementation's captured
 /// authority. No method selects a tenant, backend, generation or local path.
 /// Native adapters must refuse missing authority and preserve typed native
