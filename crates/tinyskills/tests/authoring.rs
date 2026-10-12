@@ -87,7 +87,7 @@ fn rendered_frontmatter_round_trips_through_the_parser() -> Result<(), Box<dyn s
         frontmatter
             .metadata
             .get("author")
-            .and_then(serde_yaml::Value::as_str),
+            .and_then(serde_norway::Value::as_str),
         Some("Ada")
     );
 

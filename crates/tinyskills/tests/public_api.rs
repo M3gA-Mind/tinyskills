@@ -17,8 +17,8 @@ fn parses_scalar_tool_lists_and_preserves_body() -> Result<(), Box<dyn std::erro
     Ok(())
 }
 
-fn frontmatter(yaml: &str) -> Result<SkillFrontmatter, serde_yaml::Error> {
-    serde_yaml::from_str(yaml)
+fn frontmatter(yaml: &str) -> Result<SkillFrontmatter, serde_norway::Error> {
+    serde_norway::from_str(yaml)
 }
 
 #[test]
