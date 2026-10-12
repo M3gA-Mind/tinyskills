@@ -1,6 +1,9 @@
 //! Immutable user bundle payloads, independent of persistence and authority.
 
-use crate::BundleDocument;
+use crate::{BundleDocument, is_safe_segment};
+use sha2::{Digest, Sha256};
+use std::collections::HashSet;
+use std::fmt::Write as _;
 
 /// One ordinary file supplied as bundle content, never an ambient path.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -85,15 +88,51 @@ impl UserBundle {
         primary: BundleDocument,
         document: String,
         mut resources: Vec<BundleFile>,
-        _limits: BundleLimits,
+        limits: BundleLimits,
     ) -> Result<Self, BundleContentError> {
-        resources.insert(
-            0,
-            BundleFile {
-                path: primary.file_name().into(),
-                bytes: document.into_bytes(),
-            },
-        );
+        if resources
+            .len()
+            .checked_add(1)
+            .is_none_or(|count| count > limits.max_files)
+        {
+            return Err(BundleContentError::Limit("file count"));
+        }
+        resources.push(BundleFile {
+            path: primary.file_name().into(),
+            bytes: document.into_bytes(),
+        });
+        let mut names = HashSet::with_capacity(resources.len());
+        let mut total = 0usize;
+        for file in &resources {
+            if file.path.len() > limits.max_path_bytes {
+                return Err(BundleContentError::Limit("path bytes"));
+            }
+            if !file.path.split('/').all(portable_segment) {
+                return Err(BundleContentError::InvalidPath);
+            }
+            if !names.insert(file.path.to_ascii_lowercase()) {
+                return Err(BundleContentError::DuplicatePath);
+            }
+            if file.bytes.len() > limits.max_file_bytes {
+                return Err(BundleContentError::Limit("file bytes"));
+            }
+            total = total
+                .checked_add(file.bytes.len())
+                .ok_or(BundleContentError::Limit("total bytes"))?;
+            if total > limits.max_total_bytes {
+                return Err(BundleContentError::Limit("total bytes"));
+            }
+        }
+        // A case-insensitive alias cannot become a directory on Windows even
+        // when the source was authored on a case-sensitive filesystem.
+        for name in &names {
+            for (index, _) in name.match_indices('/') {
+                if names.contains(&name[..index]) {
+                    return Err(BundleContentError::PathConflict);
+                }
+            }
+        }
+        resources.sort_by(|a, b| a.path.cmp(&b.path));
         Ok(Self {
             primary,
             files: resources,
@@ -124,7 +163,14 @@ impl UserBundle {
     /// Digest metadata in canonical relative-name order.
     #[must_use]
     pub fn manifest(&self) -> Vec<BundleManifestFile> {
-        Vec::new()
+        self.files
+            .iter()
+            .map(|file| BundleManifestFile {
+                path: file.path.clone(),
+                bytes: file.bytes.len() as u64,
+                digest: hex(&Sha256::digest(&file.bytes)),
+            })
+            .collect()
     }
 
     /// Versioned content digest; not a tenant identifier or access grant.
@@ -133,8 +179,43 @@ impl UserBundle {
     /// The primary selection, relative names and original bytes are covered.
     #[must_use]
     pub fn digest(&self) -> String {
-        String::new()
+        let mut hash = Sha256::new();
+        hash.update(b"tinyskills-user-bundle-v1\0");
+        hash.update((self.primary.file_name().len() as u64).to_le_bytes());
+        hash.update(self.primary.file_name().as_bytes());
+        for file in &self.files {
+            hash.update((file.path.len() as u64).to_le_bytes());
+            hash.update(file.path.as_bytes());
+            hash.update((file.bytes.len() as u64).to_le_bytes());
+            hash.update(&file.bytes);
+        }
+        hex(&hash.finalize())
     }
+}
+
+fn portable_segment(segment: &str) -> bool {
+    if !is_safe_segment(segment) || segment.ends_with('.') {
+        return false;
+    }
+    let stem = segment
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_uppercase();
+    !matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
+        && !["COM", "LPT"].iter().any(|prefix| {
+            stem.strip_prefix(prefix).is_some_and(|number| {
+                number.len() == 1 && matches!(number.as_bytes()[0], b'1'..=b'9')
+            })
+        })
+}
+
+fn hex(digest: &[u8]) -> String {
+    let mut result = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        let _ = write!(result, "{byte:02x}");
+    }
+    result
 }
 
 #[cfg(test)]
