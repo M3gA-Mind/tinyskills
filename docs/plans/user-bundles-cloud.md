@@ -1,6 +1,14 @@
 # User bundles behind an admitted module contract
 
-Status: source-backed design, not an implemented cloud store or host migration.
+Status: source-backed design; independent validated-content/store-contract
+foundation in progress. No implemented cloud store or host migration.
+
+Controller prerequisite is published ready in owning TinyBus PR54 at
+`60042b3b3966fca8b75850199d3efe021a015a40`. Its restricted broker starts closed
+and binds one host-selected concrete transport exactly once. The implementation
+passed independent mutation REDs, 13 focused GREENs, full owner gates and the
+CI per-file coverage threshold. This worktree has not consumed PR54; compiled
+module configuration remains blocked on its canonical availability.
 Baseline: TinySkills `cf64fbc`; its pinned TinyBus is `356bb24f`.
 Canonical runtime separately inspected at `9062dd8` after a fresh fetch.
 Pinned-source limitations below are not attributed to current runtime main.
