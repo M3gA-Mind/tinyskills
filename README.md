@@ -48,6 +48,44 @@ for skill in skills {
 - `SkillRegistry` (feature `registry`): cached, searchable skill catalogs (the Hermes index, host-supplied static libraries) with stale-while-revalidate reads, single-flight refresh, ranked paged search, facets, and guarded `SKILL.md` fetches. Network I/O is host-supplied through `RegistryTransport`; the crate links no HTTP client
 - `read_skill_archive` (feature `archive`): reads a `.zip`/`.skill`, `.tar`, or `.tar.gz` upload into its `SKILL.md`, root directory, and bundled files. It refuses traversal, absolute or backslash paths, symlinks and hard links, and nested archives, and checks entry-count and expanded-size caps before reading any content
 
+## User bundle content and persistence contract
+
+`UserBundle::new` validates an in-memory file tree before it can be published:
+portable relative names, case-insensitive collisions, file/directory conflicts,
+and file-count and byte budgets. It preserves original document and resource
+bytes, including empty and binary files. Files and manifests have deterministic
+ordering; the bundle digest includes the selected primary document and every
+file name and byte. It is a content identifier, not an access grant.
+
+```rust
+use tinyskills::{BundleDocument, BundleFile, BundleLimits, UserBundle};
+
+let bundle = UserBundle::new(
+    BundleDocument::Skill,
+    "---\nname: example\ndescription: Example skill\n---\nHello\n".to_owned(),
+    vec![BundleFile {
+        path: "references/empty.txt".to_owned(),
+        bytes: Vec::new(),
+    }],
+    BundleLimits::default(),
+)?;
+assert_eq!(bundle.file("references/empty.txt"), Some(&[][..]));
+# Ok::<(), tinyskills::BundleContentError>(())
+```
+
+`BundleStore` is a separate asynchronous persistence contract for authored
+bundles. It defines conditional publication and deletion, reads, and paged
+listing. Implementations bind authority at construction, retain typed backend
+error sources, and check that authority even for missing items and empty pages.
+A committed head is authoritative; later cleanup failures must not imply that
+publication rolled back. `Arc` forwarding preserves this contract.
+
+This crate does not yet provide a native document/blob implementation of
+`BundleStore`, a compiled module for these operations, desktop import receipts,
+or a read-only materialization cache. The fetched-catalog `CatalogStore` is a
+different contract. The staged owner design and remaining authority requirements
+are described in [the user bundle plan](docs/plans/user-bundles-cloud.md).
+
 ## Which parser
 
 `parse_skill_str` and `parse_skill` read frontmatter as YAML. Discovery uses
