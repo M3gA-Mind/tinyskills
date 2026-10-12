@@ -1,5 +1,7 @@
 use super::*;
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
+
+type TestResult = Result<(), Box<dyn std::error::Error>>;
 
 #[derive(Debug, thiserror::Error)]
 #[error("private backend detail")]
@@ -10,7 +12,10 @@ struct RecordingAdapter(Mutex<Vec<String>>);
 
 impl BundleStore for RecordingAdapter {
     fn read<'a>(&'a self, id: &'a str) -> BundleFuture<'a, Option<StoredBundle>> {
-        self.0.lock().unwrap().push(format!("read:{id}"));
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(format!("read:{id}"));
         Box::pin(async { Err(BundleStoreError::Backend(Box::new(TypedRefusal))) })
     }
     fn publish<'a>(
@@ -21,7 +26,7 @@ impl BundleStore for RecordingAdapter {
     ) -> BundleFuture<'a, BundleRevision> {
         self.0
             .lock()
-            .unwrap()
+            .unwrap_or_else(PoisonError::into_inner)
             .push(format!("publish:{id}:{expected:?}:{}", content.digest()));
         Box::pin(async { Ok(BundleRevision(42)) })
     }
@@ -32,7 +37,7 @@ impl BundleStore for RecordingAdapter {
     ) -> BundleFuture<'a, Vec<BundleSummary>> {
         self.0
             .lock()
-            .unwrap()
+            .unwrap_or_else(PoisonError::into_inner)
             .push(format!("list:{after:?}:{limit}"));
         Box::pin(async { Ok(Vec::new()) })
     }
@@ -43,7 +48,7 @@ impl BundleStore for RecordingAdapter {
     ) -> BundleFuture<'a, BundleRevision> {
         self.0
             .lock()
-            .unwrap()
+            .unwrap_or_else(PoisonError::into_inner)
             .push(format!("delete:{id}:{expected:?}"));
         Box::pin(async {
             Err(BundleStoreError::Conflict {
@@ -54,7 +59,8 @@ impl BundleStore for RecordingAdapter {
 }
 
 #[tokio::test]
-async fn erased_arc_forwarding_preserves_selectors_content_revisions_and_typed_refusals() {
+async fn erased_arc_forwarding_preserves_selectors_content_revisions_and_typed_refusals()
+-> TestResult {
     let original = Arc::new(RecordingAdapter::default());
     let erased: Arc<dyn BundleStore> = original.clone();
     let content = UserBundle::new(
@@ -62,32 +68,32 @@ async fn erased_arc_forwarding_preserves_selectors_content_revisions_and_typed_r
         "source".into(),
         Vec::new(),
         crate::BundleLimits::default(),
-    )
-    .unwrap();
+    )?;
     // This is forwarding-contract evidence, not a backend implementation or
     // proof that the recording adapter enforces native authority/transactions.
-    let error = BundleStore::read(&erased, "chosen").await.unwrap_err();
+    let error = BundleStore::read(&erased, "chosen")
+        .await
+        .err()
+        .ok_or("expected store refusal")?;
     assert!(!error.to_string().contains("private"));
     assert!(
         std::error::Error::source(&error)
-            .unwrap()
+            .ok_or("missing typed source")?
             .is::<TypedRefusal>()
     );
     assert_eq!(
-        BundleStore::publish(&erased, "chosen", Some(BundleRevision(41)), &content)
-            .await
-            .unwrap(),
+        BundleStore::publish(&erased, "chosen", Some(BundleRevision(41)), &content).await?,
         BundleRevision(42)
     );
     assert!(
         BundleStore::list(&erased, Some("cursor"), 0)
-            .await
-            .unwrap()
+            .await?
             .is_empty()
     );
     let error = BundleStore::delete(&erased, "chosen", BundleRevision(41))
         .await
-        .unwrap_err();
+        .err()
+        .ok_or("expected store refusal")?;
     assert!(matches!(
         error,
         BundleStoreError::Conflict {
@@ -95,7 +101,7 @@ async fn erased_arc_forwarding_preserves_selectors_content_revisions_and_typed_r
         }
     ));
     assert_eq!(
-        *original.0.lock().unwrap(),
+        *original.0.lock().unwrap_or_else(PoisonError::into_inner),
         vec![
             "read:chosen".to_owned(),
             format!(
@@ -106,4 +112,5 @@ async fn erased_arc_forwarding_preserves_selectors_content_revisions_and_typed_r
             "delete:chosen:BundleRevision(41)".to_owned()
         ]
     );
+    Ok(())
 }
