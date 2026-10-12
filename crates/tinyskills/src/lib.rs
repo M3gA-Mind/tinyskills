@@ -12,6 +12,7 @@
 mod archive;
 mod authoring;
 mod bundle;
+mod bundle_store;
 mod catalog;
 mod digest;
 mod discovery;
@@ -27,6 +28,7 @@ mod resource;
 mod scan;
 mod slug;
 mod trigger;
+mod user_bundle;
 
 #[cfg(feature = "archive")]
 pub use archive::{
@@ -92,3 +94,11 @@ pub use trigger::TriggerPattern;
 /// Re-exported so a host opens the directory handles [`materialize_tree`] takes
 /// with the same `cap-std` and `cap-fs-ext` versions.
 pub use {cap_fs_ext, cap_std};
+
+pub use user_bundle::{
+    BundleContentError, BundleFile, BundleLimits, BundleManifestFile, UserBundle,
+};
+
+pub use bundle_store::{
+    BundleFuture, BundleRevision, BundleStore, BundleStoreError, BundleSummary, StoredBundle,
+};
