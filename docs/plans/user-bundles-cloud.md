@@ -1,7 +1,18 @@
 # User bundles behind an admitted module contract
 
-Status: source-backed design; independent validated-content/store-contract
-foundation in progress. No implemented cloud store or host migration.
+Status: independent validated-content/store-contract foundation implemented
+and verified. No implemented cloud store or host migration.
+
+The foundation exports `UserBundle`, limits and deterministic manifest/digest
+metadata, and an object-safe `BundleStore` with conditional revisions and typed
+error sources. Primitive regressions ran against the unfixed constructor
+(4 failures), then passed after validation/digest implementation. Fresh full
+all-feature, default and registry suites passed (354, 234 and 334 tests,
+respectively, including doctests). Strict Clippy/build/docs, the dependency
+contract and example passed. The canonical 90% per-file coverage gate passed;
+`user_bundle.rs` is 117/120 lines (97.5%) and `bundle_store.rs` 25/25 (100%).
+Store tests exercise forwarding and source preservation, not native authority
+or a simulated cloud implementation.
 
 Controller prerequisite is published ready in owning TinyBus PR54 at
 `60042b3b3966fca8b75850199d3efe021a015a40`. Its restricted broker starts closed
