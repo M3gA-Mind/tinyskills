@@ -2,6 +2,8 @@
 
 Status: source-backed design, not an implemented cloud store or host migration.
 Baseline: TinySkills `cf64fbc`; its pinned TinyBus is `356bb24f`.
+Canonical runtime separately inspected at `9062dd8` after a fresh fetch.
+Pinned-source limitations below are not attributed to current runtime main.
 
 ## Existing contracts and boundaries
 
@@ -33,17 +35,31 @@ Baseline: TinySkills `cf64fbc`; its pinned TinyBus is `356bb24f`.
   epoch number or hash is not an admitted capability. Do not invent a host
   callback storage implementation or transmit raw pointers across the ABI.
 
-## Required owner contract before a cloud module can be enabled
+## Current canonical runtime and remaining admission prerequisite
 
-TinyBus must provide an authenticated invocation context and trusted module
-control admission, or an explicit private-broker isolation contract with the
-same enforceable invariants. This is an owning runtime change, not a skill
-library workaround. Proposed backward-compatible shape for runtime review:
+Canonical TinyBus `9062dd8` already provides `CallContext`,
+`Interface::call_with_context`, default legacy forwarding and Arc forwarding.
+The context has no serializable authority or public authenticated constructor.
+Memory broker deliveries have private routing proof; module deliveries use the
+trusted host's additive ABI routing callback. Unix/custom transports without
+that proof stay unverified even after Hello. `setup_factory` state lifetimes
+are also available. Consume these canonical APIs instead of inventing another
+context hook. No runtime source was modified or tested by this audit.
 
-1. Add a call-context dispatch hook whose default forwards to existing
-   `Interface::call`, plus Arc forwarding. Context contains broker-stamped
-   caller identity. Typed methods opt in explicitly; an argument named
-   `sender` must never substitute for this context.
+Current canonical `broker.rs::bus_method` still calls
+`module_method(member, body)` without authenticated caller identity. Therefore
+caller context solves ordinary actor-method admission, but does not establish
+controller authorization for replacement module configuration. Only open PR51
+was present at inspection; it concerns shared CI, not controller admission.
+
+Required remaining contract is trusted module-control admission, or an
+explicit private-broker isolation contract with enforceable equivalent
+invariants. Proposed sequence for owning runtime review:
+
+1. Use existing `call_with_context` and reject unverified caller contexts.
+   Bind authenticated sender to a trusted initialized actor; a sender names a
+   connection, not a person or tenant. Ordinary positional arguments must
+   never substitute for context.
 2. Bind module configuration to a host-selected controller connection at
    broker installation. Enforce admission on load/reinitialize/enable/stop
    before callbacks or state mutation. Do not let an ordinary peer select or
@@ -128,8 +144,10 @@ positive fixture rather than treating absence/refusal as local selection.
 
 ## Execution and acceptance sequence
 
-1. Land admitted runtime context/configuration tests and implementation in
-   TinyBus, publish its owner PR, then consume available canonical contract.
+1. Update the TinySkills runtime pin to available canonical context/factory
+   contracts, preserving history. Land the remaining controller-configuration
+   admission contract in TinyBus or prove private broker isolation; publish
+   its owner PR and consume only available canonical behavior.
 2. Add the TinySkills bundle data/revision/error contract and archive/path
    validation regressions. No implicit import or storage URL selection.
 3. Native store TDD on Memory and SQLite: independently opened A handles
