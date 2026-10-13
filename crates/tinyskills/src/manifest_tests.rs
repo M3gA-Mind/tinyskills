@@ -83,7 +83,8 @@ fn validation_trims_names_and_rejects_blank_or_duplicate() {
 
 #[test]
 fn required_defaults_to_true_when_deserialized() {
-    let parsed: ManifestInput = serde_json::from_str(r#"{"name":"a","type":"integer"}"#).expect("json");
+    let parsed: ManifestInput =
+        serde_json::from_str(r#"{"name":"a","type":"integer"}"#).expect("json");
     assert!(parsed.required);
     assert_eq!(parsed.type_.as_deref(), Some("integer"));
 }

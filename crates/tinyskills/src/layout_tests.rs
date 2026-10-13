@@ -108,8 +108,14 @@ fn extra_user_roots_are_scanned_by_kind() {
 fn legacy_scaffold_roots_depend_on_scope() {
     let home = Path::new("/h");
     let ws = Path::new("/w");
-    assert_eq!(legacy_scaffold_roots(Some(home), ws, SkillScope::User).len(), 2);
+    assert_eq!(
+        legacy_scaffold_roots(Some(home), ws, SkillScope::User).len(),
+        2
+    );
     assert!(legacy_scaffold_roots(None, ws, SkillScope::User).is_empty());
-    assert_eq!(legacy_scaffold_roots(None, ws, SkillScope::Project).len(), 2);
+    assert_eq!(
+        legacy_scaffold_roots(None, ws, SkillScope::Project).len(),
+        2
+    );
     assert!(legacy_scaffold_roots(Some(home), ws, SkillScope::Builtin).is_empty());
 }
