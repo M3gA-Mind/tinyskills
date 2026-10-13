@@ -5,7 +5,7 @@
 //! (it walks them through capability handles), so the host does not point
 //! discovery at the store: it calls [`BlobBundles::materialize`], which reads
 //! the bundles through the blob *tree view* and rebuilds the cache directory
-//! with [`materialize_tree`](crate::materialize_tree).
+//! with [`materialize_tree`](tinyskills::materialize_tree).
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -13,10 +13,9 @@ use std::sync::Arc;
 use cap_std::fs::Dir;
 use tinystoragedrivers_core::{BlobStore, StorageError, TreeEntry, TreeFile};
 
-use crate::is_safe_segment;
-use crate::materialize::{
+use tinyskills::{
     MAX_MATERIALIZE_DEPTH, MAX_MATERIALIZE_FILE_BYTES, MaterializeEntry, MaterializeError,
-    MaterializeFile, MaterializeReport, MaterializeSource, materialize_tree,
+    MaterializeFile, MaterializeReport, MaterializeSource, is_safe_segment, materialize_tree,
 };
 
 /// Why a blob-backed bundle operation failed.
