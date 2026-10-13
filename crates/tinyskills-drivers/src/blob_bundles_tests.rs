@@ -30,7 +30,7 @@ fn skill() -> Vec<MaterializeFile> {
 #[tokio::test]
 async fn publish_read_list_delete_round_trip() {
     let bundles = bundles();
-    assert!(bundles.list().await.unwrap().is_empty());
+    assert_eq!(bundles.list().await.unwrap(), Vec::<String>::new());
     assert_eq!(bundles.publish("a", skill()).await.unwrap(), 3);
     bundles
         .publish("b", vec![MaterializeFile::new("SKILL.md", "x")])
@@ -120,7 +120,7 @@ async fn refuses_unsafe_input() {
         bundles.publish("a", big).await,
         Err(BlobBundleError::TooLarge { .. })
     ));
-    assert!(bundles.list().await.unwrap().is_empty());
+    assert_eq!(bundles.list().await.unwrap(), Vec::<String>::new());
 }
 
 #[tokio::test]
