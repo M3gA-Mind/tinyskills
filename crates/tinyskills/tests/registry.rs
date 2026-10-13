@@ -12,11 +12,10 @@ use std::time::Duration;
 
 use fake::{FakeResolver, FakeTransport, ManualClock, PUBLIC_IP, Reply};
 use tinyskills::{
-    BoxFuture, CatalogEntry, CatalogStore, EntryKey, FetchPolicy, Freshness, MemoryCatalogStore,
-    StoreError, StoredCatalog, HermesIndexSource,
-    HttpMethod, ReadPolicy, RegistryEntry, RegistryError, RegistryErrorKind, RegistryLimits,
-    RegistryTimeouts, SkillQuery, SkillRegistry, SkillRegistryBuilder, SkillsShRef, StaticSource,
-    TransportError, document_digest, fetch_skill_document,
+    BoxFuture, CatalogEntry, CatalogStore, EntryKey, FetchPolicy, Freshness, HermesIndexSource,
+    HttpMethod, MemoryCatalogStore, ReadPolicy, RegistryEntry, RegistryError, RegistryErrorKind,
+    RegistryLimits, RegistryTimeouts, SkillQuery, SkillRegistry, SkillRegistryBuilder, SkillsShRef,
+    StaticSource, StoreError, StoredCatalog, TransportError, document_digest, fetch_skill_document,
 };
 
 const INDEX: &str = "https://index.test/skills.json";
@@ -589,17 +588,11 @@ impl CatalogStore for FailingStore {
 async fn store_persists_between_registries() {
     let store = Arc::new(MemoryCatalogStore::new());
     let rig = Rig::new();
-    let first = rig
-        .builder()
-        .store(Arc::clone(&store))
-        .build();
+    let first = rig.builder().store(Arc::clone(&store)).build();
     first.search(&query("")).await.unwrap();
     assert!(store.load("hermes").await.unwrap().is_some());
 
-    let second = rig
-        .builder()
-        .store(Arc::clone(&store))
-        .build();
+    let second = rig.builder().store(Arc::clone(&store)).build();
     let page = second.search(&query("")).await.unwrap();
     assert_eq!(page.total, fixture_len());
     assert_eq!(page.freshness, Freshness::Live);
@@ -608,10 +601,7 @@ async fn store_persists_between_registries() {
     rig.clock.advance(TTL * 2);
     rig.transport
         .route(HttpMethod::Get, INDEX, vec![Reply::status(304, Vec::new())]);
-    let third = rig
-        .builder()
-        .store(Arc::clone(&store))
-        .build();
+    let third = rig.builder().store(Arc::clone(&store)).build();
     let page = third.search(&query("")).await.unwrap();
     assert_eq!(page.freshness, Freshness::Cached);
     settle().await;
@@ -635,26 +625,17 @@ async fn store_persists_between_registries() {
 async fn not_modified_revalidation_persists_the_new_timestamp() {
     let store = Arc::new(MemoryCatalogStore::new());
     let rig = Rig::new();
-    let first = rig
-        .builder()
-        .store(Arc::clone(&store))
-        .build();
+    let first = rig.builder().store(Arc::clone(&store)).build();
     first.search(&query("")).await.unwrap();
 
     rig.clock.advance(TTL * 2);
     rig.transport
         .route(HttpMethod::Get, INDEX, vec![Reply::status(304, Vec::new())]);
-    let second = rig
-        .builder()
-        .store(Arc::clone(&store))
-        .build();
+    let second = rig.builder().store(Arc::clone(&store)).build();
     second.refresh(None, false).await.unwrap();
     assert_eq!(rig.index_calls(), 2);
 
-    let third = rig
-        .builder()
-        .store(Arc::clone(&store))
-        .build();
+    let third = rig.builder().store(Arc::clone(&store)).build();
     let page = third.search(&query("")).await.unwrap();
     assert_eq!(page.total, fixture_len());
     assert_eq!(page.freshness, Freshness::Live);
@@ -679,19 +660,13 @@ async fn corrupt_store_falls_through_to_a_fetch() {
 async fn unrepresentable_stored_timestamp_is_treated_as_corrupt() {
     let store = Arc::new(MemoryCatalogStore::new());
     let rig = Rig::new();
-    let seed = rig
-        .builder()
-        .store(Arc::clone(&store))
-        .build();
+    let seed = rig.builder().store(Arc::clone(&store)).build();
     seed.search(&query("")).await.unwrap();
     let mut stored = store.load("hermes").await.unwrap().unwrap();
     stored.fetched_at = u64::MAX;
     store.save("hermes", &stored).await.unwrap();
 
-    let registry = rig
-        .builder()
-        .store(Arc::clone(&store))
-        .build();
+    let registry = rig.builder().store(Arc::clone(&store)).build();
     let page = registry.search(&query("")).await.unwrap();
     assert_eq!(page.total, fixture_len());
     assert_eq!(page.freshness, Freshness::Live);

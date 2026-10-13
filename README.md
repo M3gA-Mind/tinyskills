@@ -112,23 +112,22 @@ installs with `document_digest` should digest `render_flat` output.
 by default; enable it with `features = ["registry"]`.
 
 ```rust
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use tinyskills::{
-    EntryKey, FileCatalogStore, HermesIndexSource, RegistryEntry, RegistryError,
+    CatalogStore, EntryKey, HermesIndexSource, RegistryEntry, RegistryError,
     RegistryTransport, SkillQuery, SkillRegistry, StaticSource,
 };
 
 async fn browse(
     transport: impl RegistryTransport + 'static,
     packaged_entries: Vec<RegistryEntry>,
-    cache_dir: PathBuf,
+    store: impl CatalogStore + 'static,
 ) -> Result<(), RegistryError> {
     let registry: Arc<SkillRegistry> = SkillRegistry::builder(transport)
         .source(HermesIndexSource::hermes())
         .baseline(StaticSource::new("library", "Packaged library", packaged_entries))
-        .store(FileCatalogStore::new(cache_dir))
+        .store(store)
         .featured(["apple-notes"])
         .build();
 
@@ -262,4 +261,4 @@ blob tree (`<prefix>/<bundle id>/<path>`). Discovery needs real directories, so
 the host calls `BlobBundles::materialize` to rebuild a cache directory from the
 blob tree; the write goes through `materialize_tree` with the new
 `MaterializeSource::Files`. The host picks the backend and the tenant scope.
-`FileCatalogStore` remains until the host has switched and imported old files.
+The crate ships no file-backed catalog store; `MemoryCatalogStore` covers tests and hosts without storage.

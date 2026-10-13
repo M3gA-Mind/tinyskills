@@ -85,15 +85,15 @@ pub use model::{
 };
 #[cfg(feature = "registry")]
 pub use registry::{
-    BodyChunks, BoxFuture, CatalogStore, Clock, EntryKey, Facet, FetchPolicy,
-    Freshness, GuardedResponse, HermesIndexSource, HttpMethod, MemoryCatalogStore,
-    REGISTRY_CONTRACT_VERSION, ReadPolicy, RegistryDocument, RegistryEntry, RegistryError,
-    RegistryErrorKind, RegistryErrorSummary, RegistryFacets, RegistryLimits, RegistryTimeouts,
-    RegistryTransport, Resolver, SkillDetail, SkillPage, SkillQuery, SkillRegistry,
-    SkillRegistryBuilder, SkillSource, SkillSummary, SourceContext, SourceDescriptor, SourceLoad,
-    SourceStatus, StaticSource, StoreError, StoredCatalog, SystemClock, SystemResolver,
-    TransportError, TransportRequest, TransportResponse, Validators, fetch_skill_document,
-    is_registry_contract_compatible, normalize_registry_document_url,
+    BodyChunks, BoxFuture, CatalogStore, Clock, EntryKey, Facet, FetchPolicy, Freshness,
+    GuardedResponse, HermesIndexSource, HttpMethod, MemoryCatalogStore, REGISTRY_CONTRACT_VERSION,
+    ReadPolicy, RegistryDocument, RegistryEntry, RegistryError, RegistryErrorKind,
+    RegistryErrorSummary, RegistryFacets, RegistryLimits, RegistryTimeouts, RegistryTransport,
+    Resolver, SkillDetail, SkillPage, SkillQuery, SkillRegistry, SkillRegistryBuilder, SkillSource,
+    SkillSummary, SourceContext, SourceDescriptor, SourceLoad, SourceStatus, StaticSource,
+    StoreError, StoredCatalog, SystemClock, SystemResolver, TransportError, TransportRequest,
+    TransportResponse, Validators, fetch_skill_document, is_registry_contract_compatible,
+    normalize_registry_document_url,
 };
 pub use remove::{RemoveError, remove_bundle};
 pub use resource::{ResourceError, read_resource, resolve_skill};
