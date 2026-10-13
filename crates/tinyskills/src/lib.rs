@@ -13,6 +13,8 @@ mod archive;
 mod authoring;
 mod bundle;
 mod bundle_store;
+#[cfg(feature = "storage-drivers")]
+mod blob_bundles;
 mod catalog;
 mod digest;
 mod discovery;
@@ -64,7 +66,7 @@ pub use install::{
 };
 pub use materialize::{
     MAX_MATERIALIZE_DEPTH, MAX_MATERIALIZE_FILE_BYTES, MaterializeEntry, MaterializeError,
-    MaterializeReport, MaterializeSource, materialize_tree,
+    MaterializeFile, MaterializeReport, MaterializeSource, materialize_tree,
 };
 pub use model::{
     MAX_DESCRIPTION_LEN, MAX_DOCUMENT_BYTES, MAX_NAME_LEN, MAX_RESOURCE_BYTES, RESOURCE_DIRS,
@@ -102,3 +104,8 @@ pub use user_bundle::{
 pub use bundle_store::{
     BundleFuture, BundleRevision, BundleStore, BundleStoreError, BundleSummary, StoredBundle,
 };
+
+#[cfg(feature = "storage-drivers")]
+pub use blob_bundles::{BlobBundleError, BlobBundles};
+#[cfg(all(feature = "storage-drivers", feature = "registry"))]
+pub use registry::{CATALOG_COLLECTION, DocumentCatalogStore};

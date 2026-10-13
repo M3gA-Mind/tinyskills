@@ -23,6 +23,7 @@ tar = { workspace = true, optional = true }
 flate2 = { workspace = true, optional = true }
 cap-std.workspace = true
 cap-fs-ext.workspace = true
+tinystoragedrivers-core = { workspace = true, optional = true }
 
 [features]
 # `read_skill_archive`: read an uploaded `.zip`/`.skill`, `.tar` or `.tar.gz`
@@ -32,6 +33,11 @@ archive = ["dep:zip", "dep:tar", "dep:flate2"]
 # `SkillRegistry`: cached, searchable skill catalogs fetched through a
 # host-supplied `RegistryTransport`. The crate links no HTTP client.
 registry = ["tokio/sync", "tokio/time"]
+
+# Catalogs as documents (`DocumentCatalogStore`) and bundle files as a blob
+# tree (`BlobBundles`) on the host's `tinystoragedrivers` ports. The crate
+# links no storage backend; the host picks it and the tenant scope.
+storage-drivers = ["registry", "dep:tinystoragedrivers-core"]
 
 [dev-dependencies]
 tempfile.workspace = true
