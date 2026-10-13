@@ -29,6 +29,10 @@ cap-fs-ext = "4"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 tar = { version = "0.4", default-features = false }
 flate2 = "1"
+# Skill search ranking (BM25) and description sanitising. Pinned by rev so a host
+# that links tinytools through its own patch table resolves one package.
+tinytools = { version = "0.5", git = "https://github.com/tinyhumansai/tinytools", rev = "bd60b9b52f1998b4483b9cf107a72d3338e672f8", default-features = false }
+tinytools-std = { git = "https://github.com/tinyhumansai/tinytools", rev = "bd60b9b52f1998b4483b9cf107a72d3338e672f8", default-features = false }
 
 # Lints apply to every member that opts in with `[lints] workspace = true`, and
 # to every target of that member. CI runs clippy with `-D warnings`, so anything

@@ -26,6 +26,7 @@ mod registry;
 mod remove;
 mod resource;
 mod scan;
+mod search;
 mod slug;
 mod trigger;
 mod user_bundle;
@@ -88,6 +89,7 @@ pub use scan::{
     Finding, ScanCheck, ScanDocument, ScanField, ScanReport, ScanResource, Verdict, is_invisible,
     sanitize_catalogue_text, scan_skill,
 };
+pub use search::{MAX_DESCRIPTION, SkillHit, project, rank};
 pub use slug::{PunctuationRule, SlugError, SlugRules, slugify_with, validate_slug};
 pub use trigger::TriggerPattern;
 
