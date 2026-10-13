@@ -5,7 +5,7 @@ fn skill(dir: &str, name: &str, description: &str, tags: &[&str]) -> Skill {
         dir_name: dir.to_string(),
         name: name.to_string(),
         description: description.to_string(),
-        tags: tags.iter().map(|t| t.to_string()).collect(),
+        tags: tags.iter().map(ToString::to_string).collect(),
         ..Default::default()
     }
 }
@@ -79,14 +79,12 @@ fn an_empty_corpus_is_safe() {
 fn the_projection_omits_the_body_and_caps_the_description() {
     let long = "x".repeat(1000);
     let hit = project(&skill("s", "S", &long, &["t"]));
-    let value = serde_json::to_value(&hit).expect("serialize");
+    let value = serde_json::to_value(&hit).unwrap_or_default();
     let mut keys: Vec<&str> = value
         .as_object()
-        .expect("object")
-        .keys()
-        .map(String::as_str)
-        .collect();
-    keys.sort();
+        .map(|o| o.keys().map(String::as_str).collect())
+        .unwrap_or_default();
+    keys.sort_unstable();
     assert_eq!(keys, ["description", "id", "name", "scope", "tags"]);
     assert!(hit.description.len() <= MAX_DESCRIPTION + 8);
 }
