@@ -12,6 +12,8 @@
 //! so it links no clock) and knows nothing of any agent event type: the host
 //! formats its own step lines and hands them to [`append_line`].
 
+#![allow(clippy::missing_errors_doc)]
+
 use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -185,7 +187,7 @@ pub fn scan_runs(workspace: &Path, workflow_id: Option<&str>, limit: usize) -> V
         let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
-        if !name.ends_with(".log") {
+        if path.extension().and_then(|e| e.to_str()) != Some("log") {
             continue;
         }
         let Ok(text) = std::fs::read_to_string(&path) else {
@@ -268,7 +270,7 @@ pub fn find_run_log_path(workspace: &Path, run_id: &str) -> Option<PathBuf> {
         let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
-        if name.ends_with(".log") && name.contains(&suffix) {
+        if path.extension().and_then(|e| e.to_str()) == Some("log") && name.contains(&suffix) {
             return Some(path);
         }
     }
