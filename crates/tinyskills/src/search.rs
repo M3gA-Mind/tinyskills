@@ -75,10 +75,7 @@ pub fn project(skill: &Skill) -> SkillHit {
     SkillHit {
         id: skill.id().to_string(),
         name: skill.name.clone(),
-        description: tinytools_std::sanitize::sanitize_for_llm(
-            &skill.description,
-            MAX_DESCRIPTION,
-        ),
+        description: tinytools_std::sanitize::sanitize_for_llm(&skill.description, MAX_DESCRIPTION),
         tags: skill.tags.clone(),
         scope: skill.scope,
     }
