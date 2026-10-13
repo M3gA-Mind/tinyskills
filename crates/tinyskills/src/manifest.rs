@@ -5,6 +5,8 @@
 //! [`validate_manifest_inputs`], then writes [`render_manifest_toml`] next to the
 //! scaffolded document. The manifest file name is the host's choice.
 
+use std::fmt::Write as _;
+
 use serde::{Deserialize, Serialize};
 
 /// One declared `[[inputs]]` entry, as supplied at create time.
@@ -63,20 +65,17 @@ pub fn validate_manifest_inputs(inputs: &mut [ManifestInput]) -> Result<(), Mani
 #[must_use]
 pub fn render_manifest_toml(slug: &str, when_to_use: &str, inputs: &[ManifestInput]) -> String {
     let mut out = String::new();
-    out.push_str(&format!("id = {}\n", toml_string_literal(slug)));
-    out.push_str(&format!(
-        "when_to_use = {}\n",
-        toml_string_literal(when_to_use)
-    ));
+    let _ = writeln!(out, "id = {}", toml_string_literal(slug));
+    let _ = writeln!(out, "when_to_use = {}", toml_string_literal(when_to_use));
     for input in inputs {
         out.push_str("\n[[inputs]]\n");
-        out.push_str(&format!("name = {}\n", toml_string_literal(&input.name)));
+        let _ = writeln!(out, "name = {}", toml_string_literal(&input.name));
         if let Some(d) = input.description.as_deref().filter(|s| !s.is_empty()) {
-            out.push_str(&format!("description = {}\n", toml_string_literal(d)));
+            let _ = writeln!(out, "description = {}", toml_string_literal(d));
         }
-        out.push_str(&format!("required = {}\n", input.required));
+        let _ = writeln!(out, "required = {}", input.required);
         if let Some(t) = input.type_.as_deref().filter(|s| !s.is_empty()) {
-            out.push_str(&format!("type = {}\n", toml_string_literal(t)));
+            let _ = writeln!(out, "type = {}", toml_string_literal(t));
         }
     }
     out

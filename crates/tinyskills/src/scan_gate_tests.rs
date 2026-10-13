@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::*;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
