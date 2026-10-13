@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used, clippy::expect_used)]
+
 use super::*;
 
 #[test]
@@ -71,11 +73,13 @@ fn scan_runs_parses_header_footer_and_status() {
     assert_eq!(all[0].duration_ms, None);
     assert_eq!(all[1].status, "DONE");
     assert_eq!(all[1].duration_ms, Some(617236));
-    assert!(all[1]
-        .finished
-        .as_deref()
-        .unwrap()
-        .starts_with("2026-05-28T08:01:30"));
+    assert!(
+        all[1]
+            .finished
+            .as_deref()
+            .unwrap()
+            .starts_with("2026-05-28T08:01:30")
+    );
 
     // Filter by workflow_id
     let only_pr = scan_runs(tmp.path(), Some("pr-review-shepherd"), 10);
