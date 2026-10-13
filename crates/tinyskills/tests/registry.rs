@@ -562,16 +562,21 @@ async fn catalog_over_the_byte_cap_is_refused() {
     assert_eq!(error.kind(), RegistryErrorKind::Malformed);
 }
 
-/// A store whose every operation fails with a fixed error.
-struct FailingStore(fn() -> StoreError);
+/// A store whose loads, or saves, fail with a fixed error.
+struct FailingStore {
+    error: fn() -> StoreError,
+    fail_load: bool,
+    fail_save: bool,
+}
 
 impl CatalogStore for FailingStore {
     fn load<'a>(
         &'a self,
         _registry: &'a str,
     ) -> BoxFuture<'a, Result<Option<StoredCatalog>, StoreError>> {
-        let error = (self.0)();
-        Box::pin(async move { Err(error) })
+        let error = (self.error)();
+        let fail = self.fail_load;
+        Box::pin(async move { if fail { Err(error) } else { Ok(None) } })
     }
 
     fn save<'a>(
@@ -579,8 +584,9 @@ impl CatalogStore for FailingStore {
         _registry: &'a str,
         _catalog: &'a StoredCatalog,
     ) -> BoxFuture<'a, Result<(), StoreError>> {
-        let error = (self.0)();
-        Box::pin(async move { Err(error) })
+        let error = (self.error)();
+        let fail = self.fail_save;
+        Box::pin(async move { if fail { Err(error) } else { Ok(()) } })
     }
 }
 
@@ -648,7 +654,11 @@ async fn corrupt_store_falls_through_to_a_fetch() {
     let rig = Rig::new();
     let registry = rig
         .builder()
-        .store(FailingStore(|| StoreError::Corrupt("not json".to_owned())))
+        .store(FailingStore {
+            error: || StoreError::Corrupt("not json".to_owned()),
+            fail_load: true,
+            fail_save: false,
+        })
         .build();
     let page = registry.search(&query("")).await.unwrap();
     assert_eq!(page.freshness, Freshness::Live);
@@ -678,7 +688,11 @@ async fn store_write_failures_are_reported_not_fatal() {
     let rig = Rig::new();
     let registry = rig
         .builder()
-        .store(FailingStore(|| StoreError::Io("denied".to_owned())))
+        .store(FailingStore {
+            error: || StoreError::Io("denied".to_owned()),
+            fail_load: false,
+            fail_save: true,
+        })
         .build();
     let page = registry.search(&query("")).await.unwrap();
     assert_eq!(page.freshness, Freshness::Live);
