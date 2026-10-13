@@ -12,7 +12,8 @@ use std::time::Duration;
 
 use fake::{FakeResolver, FakeTransport, ManualClock, PUBLIC_IP, Reply};
 use tinyskills::{
-    CatalogEntry, EntryKey, FetchPolicy, MemoryCatalogStore, Freshness, HermesIndexSource,
+    BoxFuture, CatalogEntry, CatalogStore, EntryKey, FetchPolicy, Freshness, MemoryCatalogStore,
+    StoreError, StoredCatalog, HermesIndexSource,
     HttpMethod, ReadPolicy, RegistryEntry, RegistryError, RegistryErrorKind, RegistryLimits,
     RegistryTimeouts, SkillQuery, SkillRegistry, SkillRegistryBuilder, SkillsShRef, StaticSource,
     TransportError, document_digest, fetch_skill_document,

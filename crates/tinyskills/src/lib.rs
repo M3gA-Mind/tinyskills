@@ -85,7 +85,7 @@ pub use model::{
 };
 #[cfg(feature = "registry")]
 pub use registry::{
-    BodyChunks, BoxFuture, CatalogStore, Clock, EntryKey, Facet, FetchPolicy, FileCatalogStore,
+    BodyChunks, BoxFuture, CatalogStore, Clock, EntryKey, Facet, FetchPolicy,
     Freshness, GuardedResponse, HermesIndexSource, HttpMethod, MemoryCatalogStore,
     REGISTRY_CONTRACT_VERSION, ReadPolicy, RegistryDocument, RegistryEntry, RegistryError,
     RegistryErrorKind, RegistryErrorSummary, RegistryFacets, RegistryLimits, RegistryTimeouts,
