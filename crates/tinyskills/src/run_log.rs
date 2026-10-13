@@ -12,7 +12,7 @@
 //! so it links no clock) and knows nothing of any agent event type: the host
 //! formats its own step lines and hands them to [`append_line`].
 
-#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_errors_doc, clippy::cast_possible_truncation)]
 
 use std::collections::HashMap;
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -184,9 +184,6 @@ pub fn scan_runs(workspace: &Path, workflow_id: Option<&str>, limit: usize) -> V
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-            continue;
-        };
         if path.extension().and_then(|e| e.to_str()) != Some("log") {
             continue;
         }
@@ -354,7 +351,7 @@ pub fn read_run_log_slice(
         });
     }
     f.seek(SeekFrom::Start(offset))?;
-    let want = ((file_size - offset).min(max_bytes as u64)) as usize;
+    let want = usize::try_from((file_size - offset).min(max_bytes as u64)).unwrap_or(max_bytes);
     let mut buf = vec![0u8; want];
     f.read_exact(&mut buf)?;
     let content = String::from_utf8_lossy(&buf).into_owned();
