@@ -19,13 +19,19 @@ mod discovery;
 mod document;
 mod flat;
 mod install;
+mod layout;
+mod manifest;
 mod materialize;
 mod model;
 #[cfg(feature = "registry")]
 mod registry;
 mod remove;
 mod resource;
+pub mod run_log;
 mod scan;
+#[cfg(feature = "registry")]
+mod scan_gate;
+mod search;
 mod slug;
 mod trigger;
 mod user_bundle;
@@ -62,6 +68,13 @@ pub use install::{
     validate_fetched_document, validate_install_url, validate_resolved_host,
     write_installed_document,
 };
+pub use layout::{
+    ALL_ROOT_KINDS, LayoutQuery, RootKind, WORKFLOW_ROOT_KINDS, discover_layout,
+    legacy_scaffold_roots, project_roots, user_roots,
+};
+pub use manifest::{
+    ManifestInput, ManifestInputError, render_manifest_toml, validate_manifest_inputs,
+};
 pub use materialize::{
     MAX_MATERIALIZE_DEPTH, MAX_MATERIALIZE_FILE_BYTES, MaterializeEntry, MaterializeError,
     MaterializeFile, MaterializeReport, MaterializeSource, materialize_tree,
@@ -88,6 +101,12 @@ pub use scan::{
     Finding, ScanCheck, ScanDocument, ScanField, ScanReport, ScanResource, Verdict, is_invisible,
     sanitize_catalogue_text, scan_skill,
 };
+#[cfg(feature = "registry")]
+pub use scan_gate::{
+    Gated, ScanAcknowledgement, ScanBlocked, ScanFindingSummary, fetch_error_is_retryable,
+    fetch_scanned, gate_install,
+};
+pub use search::{MAX_DESCRIPTION, SkillHit, project, rank};
 pub use slug::{PunctuationRule, SlugError, SlugRules, slugify_with, validate_slug};
 pub use trigger::TriggerPattern;
 
