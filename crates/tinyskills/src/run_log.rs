@@ -148,7 +148,9 @@ pub fn detect_repeated_line(
 /// `RUNNING` until the footer lands.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ScannedRun {
+    /// Full run id from the header.
     pub run_id: String,
+    /// Skill id from the header banner.
     pub workflow_id: String,
     /// Header `started:` timestamp (RFC 3339); empty if the header was malformed.
     pub started: String,
@@ -268,7 +270,9 @@ pub fn find_run_log_path(workspace: &Path, run_id: &str) -> Option<PathBuf> {
 /// Terminal outcome of a finished run, parsed from the footer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunOutcome {
+    /// `DONE` / `STOPPED` / `DEGENERATE` / `FAILED` / `RUNNING` (no footer yet).
     pub status: String,
+    /// Final output body after the footer.
     pub output: String,
 }
 
@@ -309,10 +313,15 @@ pub fn read_terminal_outcome(path: &Path) -> Option<RunOutcome> {
 /// once the footer landed, so a viewer can stop polling.
 #[derive(Debug, Clone, Serialize)]
 pub struct RunLogSlice {
+    /// New read cursor, the next call's `offset`.
     pub offset: u64,
+    /// Bytes returned in this slice.
     pub bytes_read: u64,
+    /// Slice text (lossy UTF-8).
     pub content: String,
+    /// Whether the slice reached end of file.
     pub eof: bool,
+    /// Whether the footer has landed.
     pub complete: bool,
 }
 
