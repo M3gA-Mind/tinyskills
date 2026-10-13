@@ -41,6 +41,9 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
 
+      - name: Test release packaging decisions
+        run: python3 -m unittest discover -s .github/scripts/tests -v
+
       - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
