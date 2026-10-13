@@ -39,6 +39,31 @@ pub enum MaterializeSource {
     Dir(Arc<Dir>),
     /// One `SKILL.md` document, written as the only file.
     Document(String),
+    /// A bundle already read into memory (for example from a blob store),
+    /// written at its relative paths. Each path must be `/`-separated safe
+    /// segments, no deeper than [`MAX_MATERIALIZE_DEPTH`], and each file no
+    /// larger than [`MAX_MATERIALIZE_FILE_BYTES`].
+    Files(Vec<MaterializeFile>),
+}
+
+/// One file of a [`MaterializeSource::Files`] bundle.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MaterializeFile {
+    /// The `/`-separated path inside the skill's directory.
+    pub path: String,
+    /// The file contents.
+    pub bytes: Vec<u8>,
+}
+
+impl MaterializeFile {
+    /// A file at `path` with `bytes`.
+    #[must_use]
+    pub fn new(path: impl Into<String>, bytes: impl Into<Vec<u8>>) -> Self {
+        Self {
+            path: path.into(),
+            bytes: bytes.into(),
+        }
+    }
 }
 
 /// One skill to write under the tree's root.
@@ -83,6 +108,12 @@ pub enum MaterializeError {
     DuplicateDirName {
         /// The shared name.
         dir_name: String,
+    },
+    /// A [`MaterializeSource::Files`] path is not `/`-separated safe segments.
+    #[error("`{path}` is not a safe bundle file path")]
+    UnsafeFilePath {
+        /// The refused path.
+        path: String,
     },
     /// A source directory nests deeper than [`MAX_MATERIALIZE_DEPTH`].
     #[error("{path} nests more than {max} directories deep")]
@@ -230,6 +261,7 @@ fn build(
         )?;
         match &entry.source {
             MaterializeSource::Dir(source) => copy_dir(source, &out, rel, 0, &mut report)?,
+            MaterializeSource::Files(files) => write_files(&out, rel, files, &mut report)?,
             MaterializeSource::Document(document) => {
                 let file = rel.join(SKILL_MD);
                 let mut handle = at("creating", &file, create_file(&out, OsStr::new(SKILL_MD)))?;
@@ -240,6 +272,51 @@ fn build(
         report.dirs.push(entry.dir_name.clone());
     }
     Ok(report)
+}
+
+fn write_files(
+    out: &Dir,
+    rel: &Path,
+    files: &[MaterializeFile],
+    report: &mut MaterializeReport,
+) -> Result<(), MaterializeError> {
+    for file in files {
+        let segments: Vec<&str> = file.path.split('/').collect();
+        if segments.iter().any(|segment| !is_safe_segment(segment)) {
+            return Err(MaterializeError::UnsafeFilePath {
+                path: file.path.clone(),
+            });
+        }
+        let from = rel.join(&file.path);
+        if segments.len() - 1 > MAX_MATERIALIZE_DEPTH {
+            return Err(MaterializeError::TooDeep {
+                path: from,
+                max: MAX_MATERIALIZE_DEPTH,
+            });
+        }
+        if file.bytes.len() as u64 > MAX_MATERIALIZE_FILE_BYTES {
+            return Err(MaterializeError::FileTooLarge {
+                path: from,
+                max: MAX_MATERIALIZE_FILE_BYTES,
+            });
+        }
+        let (name, dirs) = segments.split_last().unwrap_or((&"", &[]));
+        let mut dir = at("reading", rel, out.try_clone())?;
+        for segment in dirs {
+            let sub = OsStr::new(segment);
+            dir = match dir.open_dir_nofollow(sub) {
+                Ok(existing) => existing,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                    at("creating", &from, create_dir(&dir, sub))?
+                }
+                Err(error) => return Err(io("reading", &from, error)),
+            };
+        }
+        let mut handle = at("creating", &from, create_file(&dir, OsStr::new(name)))?;
+        at("writing", &from, handle.write_all(&file.bytes))?;
+        report.files += 1;
+    }
+    Ok(())
 }
 
 fn remove_entry(parent: &Dir, name: &str) -> Result<(), MaterializeError> {
