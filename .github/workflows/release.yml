@@ -62,6 +62,13 @@ jobs:
           git tag "v$next"
           gh auth setup-git
           git push --atomic origin HEAD:main "v$next"
-          cargo package --locked --package tinyskills
-          gh release create "v$next" "target/package/tinyskills-${next}.crate" \
-            --generate-notes --title "v$next"
+          # tinytools is consumed by git rev (its crates.io name is a different
+          # crate), so the package cannot resolve against the registry; hosts
+          # consume tinyskills through a gitlink, so release the tag without a
+          # .crate asset when packaging fails.
+          if cargo package --locked --package tinyskills; then
+            gh release create "v$next" "target/package/tinyskills-${next}.crate" \
+              --generate-notes --title "v$next"
+          else
+            gh release create "v$next" --generate-notes --title "v$next"
+          fi
