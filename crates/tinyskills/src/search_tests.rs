@@ -75,10 +75,14 @@ fn an_empty_corpus_is_safe() {
     assert!(rank(&[], "anything", 5).is_empty());
 }
 
+fn cap(text: &str, max: usize) -> String {
+    text.chars().take(max).collect()
+}
+
 #[test]
 fn the_projection_omits_the_body_and_caps_the_description() {
     let long = "x".repeat(1000);
-    let hit = project(&skill("s", "S", &long, &["t"]));
+    let hit = project(&skill("s", "S", &long, &["t"]), cap);
     let value = serde_json::to_value(&hit).unwrap_or_default();
     let mut keys: Vec<&str> = value
         .as_object()
@@ -91,6 +95,6 @@ fn the_projection_omits_the_body_and_caps_the_description() {
 
 #[test]
 fn the_projection_id_falls_back_to_the_name_without_a_directory() {
-    let hit = project(&skill("", "Only Name", "d", &[]));
+    let hit = project(&skill("", "Only Name", "d", &[]), cap);
     assert_eq!(hit.id, "Only Name");
 }

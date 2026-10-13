@@ -32,7 +32,6 @@ flate2 = "1"
 # Skill search ranking (BM25) and description sanitising. Pinned by rev so a host
 # that links tinytools through its own patch table resolves one package.
 tinytools = { version = "0.5", git = "https://github.com/tinyhumansai/tinytools", rev = "1cd9e9c4a117336e6f42d0c7936ed60e7476d88f", default-features = false }
-tinytools-std = { version = "0.5", git = "https://github.com/tinyhumansai/tinytools", rev = "1cd9e9c4a117336e6f42d0c7936ed60e7476d88f", default-features = false }
 
 # Lints apply to every member that opts in with `[lints] workspace = true`, and
 # to every target of that member. CI runs clippy with `-D warnings`, so anything

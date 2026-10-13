@@ -24,7 +24,6 @@ flate2 = { workspace = true, optional = true }
 cap-std.workspace = true
 cap-fs-ext.workspace = true
 tinytools.workspace = true
-tinytools-std.workspace = true
 
 [features]
 # `read_skill_archive`: read an uploaded `.zip`/`.skill`, `.tar` or `.tar.gz`

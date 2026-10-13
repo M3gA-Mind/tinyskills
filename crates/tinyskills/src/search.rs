@@ -69,13 +69,15 @@ pub fn rank<'a>(skills: &'a [Skill], query: &str, limit: usize) -> Vec<&'a Skill
 ///
 /// The description is author-controlled text a model will read as if the host
 /// had said it, so control characters and instruction fences are stripped and
-/// the length capped.
+/// the length capped. The crate stays free of network dependencies, so the
+/// host supplies the sanitiser (`tinytools_std::sanitize::sanitize_for_llm`
+/// takes `(text, max_bytes)`); it is called with [`MAX_DESCRIPTION`].
 #[must_use]
-pub fn project(skill: &Skill) -> SkillHit {
+pub fn project(skill: &Skill, sanitize: impl Fn(&str, usize) -> String) -> SkillHit {
     SkillHit {
         id: skill.id().to_string(),
         name: skill.name.clone(),
-        description: tinytools_std::sanitize::sanitize_for_llm(&skill.description, MAX_DESCRIPTION),
+        description: sanitize(&skill.description, MAX_DESCRIPTION),
         tags: skill.tags.clone(),
         scope: skill.scope,
     }
