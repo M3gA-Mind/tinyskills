@@ -691,7 +691,7 @@ dependencies = [
 
 [[package]]
 name = "tinyskills"
-version = "0.2.10"
+version = "0.3.0"
 dependencies = [
  "cap-fs-ext",
  "cap-std",
@@ -711,7 +711,7 @@ dependencies = [
 
 [[package]]
 name = "tinyskills-drivers"
-version = "0.2.10"
+version = "0.3.0"
 dependencies = [
  "cap-std",
  "serde_json",
