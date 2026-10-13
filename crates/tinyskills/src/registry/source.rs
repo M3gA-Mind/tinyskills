@@ -13,7 +13,7 @@ use super::transport::{BoxFuture, HttpMethod};
 /// A source's id and display label. The id names the registry in queries,
 /// in [`EntryKey`](crate::EntryKey) and in the store, and must be a plain path
 /// segment (see [`is_safe_segment`](crate::is_safe_segment)) to be persisted
-/// by a [`FileCatalogStore`](crate::FileCatalogStore).
+/// by a a [`CatalogStore`](crate::CatalogStore).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct SourceDescriptor {

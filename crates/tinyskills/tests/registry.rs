@@ -12,10 +12,10 @@ use std::time::Duration;
 
 use fake::{FakeResolver, FakeTransport, ManualClock, PUBLIC_IP, Reply};
 use tinyskills::{
-    CatalogEntry, EntryKey, FetchPolicy, FileCatalogStore, Freshness, HermesIndexSource,
-    HttpMethod, ReadPolicy, RegistryEntry, RegistryError, RegistryErrorKind, RegistryLimits,
-    RegistryTimeouts, SkillQuery, SkillRegistry, SkillRegistryBuilder, SkillsShRef, StaticSource,
-    TransportError, document_digest, fetch_skill_document,
+    BoxFuture, CatalogEntry, CatalogStore, EntryKey, FetchPolicy, Freshness, HermesIndexSource,
+    HttpMethod, MemoryCatalogStore, ReadPolicy, RegistryEntry, RegistryError, RegistryErrorKind,
+    RegistryLimits, RegistryTimeouts, SkillQuery, SkillRegistry, SkillRegistryBuilder, SkillsShRef,
+    StaticSource, StoreError, StoredCatalog, TransportError, document_digest, fetch_skill_document,
 };
 
 const INDEX: &str = "https://index.test/skills.json";
@@ -562,21 +562,43 @@ async fn catalog_over_the_byte_cap_is_refused() {
     assert_eq!(error.kind(), RegistryErrorKind::Malformed);
 }
 
-#[tokio::test]
-async fn file_store_persists_between_registries() {
-    let dir = tempfile::tempdir().unwrap();
-    let rig = Rig::new();
-    let first = rig
-        .builder()
-        .store(FileCatalogStore::new(dir.path()))
-        .build();
-    first.search(&query("")).await.unwrap();
-    assert!(dir.path().join("hermes.json").is_file());
+/// A store whose loads, or saves, fail with a fixed error.
+struct FailingStore {
+    error: fn() -> StoreError,
+    fail_load: bool,
+    fail_save: bool,
+}
 
-    let second = rig
-        .builder()
-        .store(FileCatalogStore::new(dir.path()))
-        .build();
+impl CatalogStore for FailingStore {
+    fn load<'a>(
+        &'a self,
+        _registry: &'a str,
+    ) -> BoxFuture<'a, Result<Option<StoredCatalog>, StoreError>> {
+        let error = (self.error)();
+        let fail = self.fail_load;
+        Box::pin(async move { if fail { Err(error) } else { Ok(None) } })
+    }
+
+    fn save<'a>(
+        &'a self,
+        _registry: &'a str,
+        _catalog: &'a StoredCatalog,
+    ) -> BoxFuture<'a, Result<(), StoreError>> {
+        let error = (self.error)();
+        let fail = self.fail_save;
+        Box::pin(async move { if fail { Err(error) } else { Ok(()) } })
+    }
+}
+
+#[tokio::test]
+async fn store_persists_between_registries() {
+    let store = Arc::new(MemoryCatalogStore::new());
+    let rig = Rig::new();
+    let first = rig.builder().store(Arc::clone(&store)).build();
+    first.search(&query("")).await.unwrap();
+    assert!(store.load("hermes").await.unwrap().is_some());
+
+    let second = rig.builder().store(Arc::clone(&store)).build();
     let page = second.search(&query("")).await.unwrap();
     assert_eq!(page.total, fixture_len());
     assert_eq!(page.freshness, Freshness::Live);
@@ -585,10 +607,7 @@ async fn file_store_persists_between_registries() {
     rig.clock.advance(TTL * 2);
     rig.transport
         .route(HttpMethod::Get, INDEX, vec![Reply::status(304, Vec::new())]);
-    let third = rig
-        .builder()
-        .store(FileCatalogStore::new(dir.path()))
-        .build();
+    let third = rig.builder().store(Arc::clone(&store)).build();
     let page = third.search(&query("")).await.unwrap();
     assert_eq!(page.freshness, Freshness::Cached);
     settle().await;
@@ -610,28 +629,19 @@ async fn file_store_persists_between_registries() {
 
 #[tokio::test]
 async fn not_modified_revalidation_persists_the_new_timestamp() {
-    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(MemoryCatalogStore::new());
     let rig = Rig::new();
-    let first = rig
-        .builder()
-        .store(FileCatalogStore::new(dir.path()))
-        .build();
+    let first = rig.builder().store(Arc::clone(&store)).build();
     first.search(&query("")).await.unwrap();
 
     rig.clock.advance(TTL * 2);
     rig.transport
         .route(HttpMethod::Get, INDEX, vec![Reply::status(304, Vec::new())]);
-    let second = rig
-        .builder()
-        .store(FileCatalogStore::new(dir.path()))
-        .build();
+    let second = rig.builder().store(Arc::clone(&store)).build();
     second.refresh(None, false).await.unwrap();
     assert_eq!(rig.index_calls(), 2);
 
-    let third = rig
-        .builder()
-        .store(FileCatalogStore::new(dir.path()))
-        .build();
+    let third = rig.builder().store(Arc::clone(&store)).build();
     let page = third.search(&query("")).await.unwrap();
     assert_eq!(page.total, fixture_len());
     assert_eq!(page.freshness, Freshness::Live);
@@ -641,12 +651,14 @@ async fn not_modified_revalidation_persists_the_new_timestamp() {
 
 #[tokio::test]
 async fn corrupt_store_falls_through_to_a_fetch() {
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::write(dir.path().join("hermes.json"), b"{ not json").unwrap();
     let rig = Rig::new();
     let registry = rig
         .builder()
-        .store(FileCatalogStore::new(dir.path()))
+        .store(FailingStore {
+            error: || StoreError::Corrupt("not json".to_owned()),
+            fail_load: true,
+            fail_save: false,
+        })
         .build();
     let page = registry.search(&query("")).await.unwrap();
     assert_eq!(page.freshness, Freshness::Live);
@@ -656,23 +668,15 @@ async fn corrupt_store_falls_through_to_a_fetch() {
 
 #[tokio::test]
 async fn unrepresentable_stored_timestamp_is_treated_as_corrupt() {
-    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(MemoryCatalogStore::new());
     let rig = Rig::new();
-    let seed = rig
-        .builder()
-        .store(FileCatalogStore::new(dir.path()))
-        .build();
+    let seed = rig.builder().store(Arc::clone(&store)).build();
     seed.search(&query("")).await.unwrap();
-    let path = dir.path().join("hermes.json");
-    let mut stored: serde_json::Value =
-        serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
-    stored["fetched_at"] = serde_json::json!(u64::MAX);
-    std::fs::write(&path, serde_json::to_vec(&stored).unwrap()).unwrap();
+    let mut stored = store.load("hermes").await.unwrap().unwrap();
+    stored.fetched_at = u64::MAX;
+    store.save("hermes", &stored).await.unwrap();
 
-    let registry = rig
-        .builder()
-        .store(FileCatalogStore::new(dir.path()))
-        .build();
+    let registry = rig.builder().store(Arc::clone(&store)).build();
     let page = registry.search(&query("")).await.unwrap();
     assert_eq!(page.total, fixture_len());
     assert_eq!(page.freshness, Freshness::Live);
@@ -681,13 +685,14 @@ async fn unrepresentable_stored_timestamp_is_treated_as_corrupt() {
 
 #[tokio::test]
 async fn store_write_failures_are_reported_not_fatal() {
-    let dir = tempfile::tempdir().unwrap();
-    let blocker = dir.path().join("file");
-    std::fs::write(&blocker, b"x").unwrap();
     let rig = Rig::new();
     let registry = rig
         .builder()
-        .store(FileCatalogStore::new(blocker.join("store")))
+        .store(FailingStore {
+            error: || StoreError::Io("denied".to_owned()),
+            fail_load: false,
+            fail_save: true,
+        })
         .build();
     let page = registry.search(&query("")).await.unwrap();
     assert_eq!(page.freshness, Freshness::Live);

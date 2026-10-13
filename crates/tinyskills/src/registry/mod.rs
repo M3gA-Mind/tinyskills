@@ -38,9 +38,7 @@ pub use hermes::HermesIndexSource;
 pub use service::{SkillRegistry, SkillRegistryBuilder};
 pub use source::{SkillSource, SourceContext, SourceDescriptor, SourceLoad};
 pub use static_source::StaticSource;
-pub use store::{
-    CatalogStore, Clock, FileCatalogStore, MemoryCatalogStore, StoredCatalog, SystemClock,
-};
+pub use store::{CatalogStore, Clock, MemoryCatalogStore, StoredCatalog, SystemClock};
 pub use transport::{
     BodyChunks, BoxFuture, HttpMethod, RegistryTransport, Resolver, SystemResolver, TransportError,
     TransportRequest, TransportResponse,
