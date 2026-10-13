@@ -1,0 +1,27 @@
+[package]
+name = "tinyskills-drivers"
+description = "tinyskills on the tinystoragedrivers ports: catalogs as documents, bundle files as a blob tree"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+# Not published: it depends on `tinystoragedrivers-core` by git tag, which a
+# crates.io package cannot do. The published `tinyskills` crate stays free of
+# any storage dependency.
+publish = false
+
+[dependencies]
+tinyskills = { path = "../tinyskills", features = ["registry"] }
+tinystoragedrivers-core.workspace = true
+cap-std.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "sync"] }
+
+[lints]
+workspace = true

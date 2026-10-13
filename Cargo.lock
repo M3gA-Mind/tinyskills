@@ -704,10 +704,22 @@ dependencies = [
  "tar",
  "tempfile",
  "thiserror",
- "tinystoragedrivers-core",
  "tokio",
  "url",
  "zip",
+]
+
+[[package]]
+name = "tinyskills-drivers"
+version = "0.2.10"
+dependencies = [
+ "cap-std",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tinyskills",
+ "tinystoragedrivers-core",
+ "tokio",
 ]
 
 [[package]]

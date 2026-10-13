@@ -4,16 +4,14 @@ use serde_json::json;
 use tinystoragedrivers_core::{MemoryStorage, Scope, StorageBackend};
 
 use super::*;
-use crate::registry::contract::{RegistryEntry, Validators};
+use tinyskills::{RegistryEntry, Validators};
 
 fn catalog() -> StoredCatalog {
     let mut entry = RegistryEntry::default();
     entry.entry.id = "a".to_owned();
     entry.entry.name = "a".to_owned();
-    let validators = Validators {
-        etag: Some("\"e\"".to_owned()),
-        ..Validators::default()
-    };
+    let mut validators = Validators::default();
+    validators.etag = Some("\"e\"".to_owned());
     StoredCatalog::new(vec![entry], 42, validators, 3)
 }
 

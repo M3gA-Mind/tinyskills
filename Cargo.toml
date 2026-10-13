@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/tinyskills"]
+members = ["crates/tinyskills", "crates/tinyskills-drivers"]
 exclude = ["vendor", "worktrees"]
 
 [workspace.package]

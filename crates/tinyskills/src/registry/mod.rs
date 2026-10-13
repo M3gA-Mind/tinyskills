@@ -13,8 +13,6 @@
 //! bounds every body and every operation.
 
 mod contract;
-#[cfg(feature = "storage-drivers")]
-mod document_store;
 mod error;
 mod fetch;
 mod hermes;
@@ -31,8 +29,6 @@ pub use contract::{
     RegistryErrorSummary, RegistryFacets, SkillDetail, SkillPage, SkillQuery, SkillSummary,
     SourceStatus, Validators, is_registry_contract_compatible,
 };
-#[cfg(feature = "storage-drivers")]
-pub use document_store::{CATALOG_COLLECTION, DocumentCatalogStore};
 pub use error::{RegistryError, RegistryErrorKind, StoreError};
 pub use fetch::{
     FetchPolicy, GuardedResponse, RegistryDocument, RegistryLimits, RegistryTimeouts,

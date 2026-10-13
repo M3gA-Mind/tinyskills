@@ -11,8 +11,6 @@
 #[cfg(feature = "archive")]
 mod archive;
 mod authoring;
-#[cfg(feature = "storage-drivers")]
-mod blob_bundles;
 mod bundle;
 mod bundle_store;
 mod catalog;
@@ -104,8 +102,3 @@ pub use user_bundle::{
 pub use bundle_store::{
     BundleFuture, BundleRevision, BundleStore, BundleStoreError, BundleSummary, StoredBundle,
 };
-
-#[cfg(feature = "storage-drivers")]
-pub use blob_bundles::{BlobBundleError, BlobBundles};
-#[cfg(all(feature = "storage-drivers", feature = "registry"))]
-pub use registry::{CATALOG_COLLECTION, DocumentCatalogStore};

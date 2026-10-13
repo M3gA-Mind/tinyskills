@@ -7,10 +7,7 @@ use tinystoragedrivers_core::{
 };
 use tokio::sync::OnceCell;
 
-use super::error::StoreError;
-use super::store::{CatalogStore, StoredCatalog};
-use super::transport::BoxFuture;
-use crate::is_safe_segment;
+use tinyskills::{BoxFuture, CatalogStore, StoreError, StoredCatalog, is_safe_segment};
 
 /// The collection that holds one document per registry.
 pub const CATALOG_COLLECTION: &str = "tinyskills_catalogs";
