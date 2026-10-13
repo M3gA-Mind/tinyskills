@@ -25,6 +25,7 @@ mod model;
 mod registry;
 mod remove;
 mod resource;
+mod run_log;
 mod scan;
 mod search;
 mod slug;
