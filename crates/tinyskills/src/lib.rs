@@ -64,7 +64,7 @@ pub use install::{
 };
 pub use materialize::{
     MAX_MATERIALIZE_DEPTH, MAX_MATERIALIZE_FILE_BYTES, MaterializeEntry, MaterializeError,
-    MaterializeReport, MaterializeSource, materialize_tree,
+    MaterializeFile, MaterializeReport, MaterializeSource, materialize_tree,
 };
 pub use model::{
     MAX_DESCRIPTION_LEN, MAX_DOCUMENT_BYTES, MAX_NAME_LEN, MAX_RESOURCE_BYTES, RESOURCE_DIRS,

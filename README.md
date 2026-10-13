@@ -251,3 +251,15 @@ and Hermes' built-in and optional skills).
 ## License
 
 GPL-3.0-only. See [LICENSE](LICENSE).
+
+## Storage ports
+
+`tinyskills-drivers` (an unpublished workspace crate that depends on
+`tinystoragedrivers-core` only) puts the host's storage under the crate:
+`DocumentCatalogStore` keeps fetched registry catalogs as documents
+(`tinyskills_catalogs/<registry>`), and `BlobBundles` keeps bundle files as a
+blob tree (`<prefix>/<bundle id>/<path>`). Discovery needs real directories, so
+the host calls `BlobBundles::materialize` to rebuild a cache directory from the
+blob tree; the write goes through `materialize_tree` with the new
+`MaterializeSource::Files`. The host picks the backend and the tenant scope.
+`FileCatalogStore` remains until the host has switched and imported old files.
