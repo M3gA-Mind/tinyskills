@@ -17,7 +17,7 @@ pub const CATALOG_COLLECTION: &str = "tinyskills_catalogs";
 
 /// Fetched catalogs as documents, `tinyskills_catalogs/<registry>`.
 ///
-/// The host picks the backend (SQLite, MongoDB, memory) and the tenant scope
+/// The host picks the backend (`SQLite`, `MongoDB`, memory) and the tenant scope
 /// when it builds the [`DocumentStore`] handle; this store never names either.
 /// A document in another format reads as absent, and one that does not decode
 /// reads as [`StoreError::Corrupt`]. A failing backend surfaces as
@@ -53,8 +53,8 @@ impl DocumentCatalogStore {
                     .await
             })
             .await
-            .map(|_| ())
-            .map_err(storage_error)
+            .map_err(|error| storage_error(&error))?;
+        Ok(())
     }
 
     fn check(registry: &str) -> Result<(), StoreError> {
@@ -66,7 +66,7 @@ impl DocumentCatalogStore {
     }
 }
 
-fn storage_error(error: StorageError) -> StoreError {
+fn storage_error(error: &StorageError) -> StoreError {
     match error.kind() {
         ErrorKind::Serialization => StoreError::Corrupt(error.to_string()),
         _ => StoreError::Io(error.to_string()),
@@ -85,7 +85,7 @@ impl CatalogStore for DocumentCatalogStore {
                 .documents
                 .get(CATALOG_COLLECTION, registry)
                 .await
-                .map_err(storage_error)?
+                .map_err(|error| storage_error(&error))?
             else {
                 return Ok(None);
             };
@@ -117,7 +117,7 @@ impl CatalogStore for DocumentCatalogStore {
                 .put(CATALOG_COLLECTION, registry, doc, Precondition::None)
                 .await
                 .map(|_| ())
-                .map_err(storage_error)
+                .map_err(|error| storage_error(&error))
         })
     }
 }

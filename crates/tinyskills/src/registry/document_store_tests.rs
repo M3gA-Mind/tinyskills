@@ -107,9 +107,9 @@ async fn scopes_are_isolated() {
 fn storage_errors_map_to_store_errors() {
     let serialization = StorageError::new(ErrorKind::Serialization, "bad json");
     assert!(matches!(
-        storage_error(serialization),
+        storage_error(&serialization),
         StoreError::Corrupt(_)
     ));
     let backend = StorageError::new(ErrorKind::Backend, "down");
-    assert!(matches!(storage_error(backend), StoreError::Io(_)));
+    assert!(matches!(storage_error(&backend), StoreError::Io(_)));
 }
