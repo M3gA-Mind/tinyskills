@@ -22,11 +22,13 @@ use serde_json::Value;
 const RESULT_MARKER: &str = "--- result ---";
 
 /// `<workspace>/skills/.runs`.
+#[must_use]
 pub fn runs_dir(workspace: &Path) -> PathBuf {
     workspace.join("skills").join(".runs")
 }
 
 /// Replace every character outside `[A-Za-z0-9_-]` with `-`.
+#[must_use]
 pub fn sanitize(s: &str) -> String {
     s.chars()
         .map(|c| {
@@ -40,11 +42,13 @@ pub fn sanitize(s: &str) -> String {
 }
 
 /// The first 8 characters of an id (the whole id when shorter).
+#[must_use]
 pub fn short(s: &str) -> &str {
     s.get(..8).unwrap_or(s)
 }
 
 /// Collapse newlines to spaces and cap at `n` characters, marking a cut with `…`.
+#[must_use]
 pub fn truncate(s: &str, n: usize) -> String {
     let s = s.replace('\n', " ");
     if s.chars().count() > n {
@@ -56,6 +60,7 @@ pub fn truncate(s: &str, n: usize) -> String {
 
 /// `<runs_dir>/<skill>_<ts>_<short run id>.log`. `timestamp` is the host's
 /// compact UTC stamp, e.g. `20260528T075113Z`.
+#[must_use]
 pub fn run_log_path(workspace: &Path, workflow_id: &str, run_id: &str, timestamp: &str) -> PathBuf {
     runs_dir(workspace).join(format!(
         "{}_{}_{}.log",
@@ -125,6 +130,7 @@ pub fn write_footer(
 /// generation" failure mode: trims each line, counts those of at least
 /// `min_len` bytes, and returns the most-repeated line with its count when the
 /// count reaches `min_count`.
+#[must_use]
 pub fn detect_repeated_line(
     text: &str,
     min_len: usize,
@@ -168,6 +174,7 @@ pub struct ScannedRun {
 /// return runs sorted by `started` descending. `workflow_id` filters by skill;
 /// `limit` caps the result after filtering and sorting. Malformed files are
 /// skipped.
+#[must_use]
 pub fn scan_runs(workspace: &Path, workflow_id: Option<&str>, limit: usize) -> Vec<ScannedRun> {
     let mut runs: Vec<ScannedRun> = Vec::new();
     let Ok(entries) = std::fs::read_dir(runs_dir(workspace)) else {
@@ -250,6 +257,7 @@ pub fn scan_runs(workspace: &Path, workflow_id: Option<&str>, limit: usize) -> V
 
 /// Resolve a run id to its log path by matching the `_<first 8 chars>.log`
 /// file-name suffix, so the caller never supplies a path.
+#[must_use]
 pub fn find_run_log_path(workspace: &Path, run_id: &str) -> Option<PathBuf> {
     if run_id.is_empty() {
         return None;
@@ -279,6 +287,7 @@ pub struct RunOutcome {
 /// Read a run log and, once the footer has landed, return the status and the
 /// final output body. `None` while the run is still running, the footer is
 /// partially written (no closing `finished:` line), or the file is unreadable.
+#[must_use]
 pub fn read_terminal_outcome(path: &Path) -> Option<RunOutcome> {
     let text = std::fs::read_to_string(path).ok()?;
     let idx = text.find(RESULT_MARKER)?;

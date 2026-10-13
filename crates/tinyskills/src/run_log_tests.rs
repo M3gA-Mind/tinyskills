@@ -72,7 +72,7 @@ fn scan_runs_parses_header_footer_and_status() {
     assert_eq!(all[0].status, "RUNNING");
     assert_eq!(all[0].duration_ms, None);
     assert_eq!(all[1].status, "DONE");
-    assert_eq!(all[1].duration_ms, Some(617236));
+    assert_eq!(all[1].duration_ms, Some(617_236));
     assert!(
         all[1]
             .finished
