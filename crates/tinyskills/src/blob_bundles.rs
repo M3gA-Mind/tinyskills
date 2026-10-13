@@ -13,11 +13,11 @@ use std::sync::Arc;
 use cap_std::fs::Dir;
 use tinystoragedrivers_core::{BlobStore, StorageError, TreeEntry, TreeFile};
 
+use crate::is_safe_segment;
 use crate::materialize::{
     MAX_MATERIALIZE_DEPTH, MAX_MATERIALIZE_FILE_BYTES, MaterializeEntry, MaterializeError,
     MaterializeFile, MaterializeReport, MaterializeSource, materialize_tree,
 };
-use crate::is_safe_segment;
 
 /// Why a blob-backed bundle operation failed.
 #[derive(Debug, thiserror::Error)]
@@ -119,7 +119,11 @@ impl BlobBundles {
             return Err(BlobBundleError::Empty);
         }
         for file in &files {
-            if file.path.split('/').any(|segment| !is_safe_segment(segment)) {
+            if file
+                .path
+                .split('/')
+                .any(|segment| !is_safe_segment(segment))
+            {
                 return Err(BlobBundleError::InvalidPath(file.path.clone()));
             }
             if file.bytes.len() as u64 > MAX_MATERIALIZE_FILE_BYTES {

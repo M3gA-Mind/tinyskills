@@ -39,7 +39,10 @@ async fn publish_read_list_delete_round_trip() {
     assert_eq!(bundles.list().await.unwrap(), ["a", "b"]);
     let read = bundles.read("a").await.unwrap();
     let paths: Vec<_> = read.iter().map(|f| f.path.as_str()).collect();
-    assert_eq!(paths, ["SKILL.md", "references/deep/notes.md", "scripts/run.sh"]);
+    assert_eq!(
+        paths,
+        ["SKILL.md", "references/deep/notes.md", "scripts/run.sh"]
+    );
     assert_eq!(read[2].bytes, b"echo hi");
     assert!(bundles.delete("a").await.unwrap());
     assert!(!bundles.delete("a").await.unwrap());
@@ -148,7 +151,10 @@ async fn materializes_a_real_directory_tree_that_discovery_can_read() {
     bundles
         .publish(
             "two",
-            vec![MaterializeFile::new("SKILL.md", "---\nname: T\ndescription: U\n---\n")],
+            vec![MaterializeFile::new(
+                "SKILL.md",
+                "---\nname: T\ndescription: U\n---\n",
+            )],
         )
         .await
         .unwrap();
@@ -198,7 +204,9 @@ async fn materialize_reports_directory_name_errors() {
         .await;
     assert!(matches!(
         result,
-        Err(BlobBundleError::Materialize(MaterializeError::UnsafeDirName { .. }))
+        Err(BlobBundleError::Materialize(
+            MaterializeError::UnsafeDirName { .. }
+        ))
     ));
 }
 

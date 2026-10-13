@@ -111,8 +111,8 @@ impl CatalogStore for DocumentCatalogStore {
         Box::pin(async move {
             Self::check(registry)?;
             self.ensure().await?;
-            let doc = serde_json::to_value(catalog)
-                .map_err(|error| StoreError::Io(error.to_string()))?;
+            let doc =
+                serde_json::to_value(catalog).map_err(|error| StoreError::Io(error.to_string()))?;
             self.documents
                 .put(CATALOG_COLLECTION, registry, doc, Precondition::None)
                 .await

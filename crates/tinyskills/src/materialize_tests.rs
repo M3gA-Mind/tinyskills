@@ -229,3 +229,93 @@ fn errors_name_the_path_relative_to_the_tree() -> TestResult {
     );
     Ok(())
 }
+
+fn files(dir_name: &str, files: Vec<MaterializeFile>) -> MaterializeEntry {
+    MaterializeEntry {
+        dir_name: dir_name.to_string(),
+        source: MaterializeSource::Files(files),
+    }
+}
+
+#[test]
+fn files_source_writes_nested_paths() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let parent = open(temp.path())?;
+    let entry = files(
+        "demo",
+        vec![
+            MaterializeFile::new("SKILL.md", "doc"),
+            MaterializeFile::new("a/b/one.txt", "1"),
+            MaterializeFile::new("a/b/two.txt", "2"),
+            MaterializeFile::new("a/three.txt", "3"),
+        ],
+    );
+    let report = materialize_tree(&parent, "out", &[entry])?;
+    assert_eq!(report.files, 4);
+    assert_eq!(report.dirs, ["demo"]);
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("out/demo/a/b/two.txt"))?,
+        "2"
+    );
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("out/demo/a/three.txt"))?,
+        "3"
+    );
+    Ok(())
+}
+
+#[test]
+fn files_source_refuses_unsafe_deep_and_oversized_files() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    for path in ["", "../x", "/x", "a//b", "a/./b"] {
+        let error = refused(
+            temp.path(),
+            "out",
+            &[files("demo", vec![MaterializeFile::new(path, "x")])],
+        )?;
+        assert!(
+            matches!(error, MaterializeError::UnsafeFilePath { .. }),
+            "{path:?}: {error:?}"
+        );
+    }
+    let deep = format!("{}/f", vec!["d"; MAX_MATERIALIZE_DEPTH + 1].join("/"));
+    let error = refused(
+        temp.path(),
+        "out",
+        &[files("demo", vec![MaterializeFile::new(deep, "x")])],
+    )?;
+    assert!(
+        matches!(error, MaterializeError::TooDeep { .. }),
+        "{error:?}"
+    );
+    let big = vec![0u8; usize::try_from(MAX_MATERIALIZE_FILE_BYTES)? + 1];
+    let error = refused(
+        temp.path(),
+        "out",
+        &[files("demo", vec![MaterializeFile::new("big", big)])],
+    )?;
+    assert!(
+        matches!(error, MaterializeError::FileTooLarge { .. }),
+        "{error:?}"
+    );
+    assert!(!temp.path().join("out").exists());
+    Ok(())
+}
+
+#[test]
+fn files_source_refuses_a_file_and_directory_at_one_path() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let error = refused(
+        temp.path(),
+        "out",
+        &[files(
+            "demo",
+            vec![
+                MaterializeFile::new("a", "x"),
+                MaterializeFile::new("a/b", "y"),
+            ],
+        )],
+    )?;
+    assert!(matches!(error, MaterializeError::Io { .. }), "{error:?}");
+    Ok(())
+}

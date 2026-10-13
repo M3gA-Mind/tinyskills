@@ -11,10 +11,10 @@
 #[cfg(feature = "archive")]
 mod archive;
 mod authoring;
-mod bundle;
-mod bundle_store;
 #[cfg(feature = "storage-drivers")]
 mod blob_bundles;
+mod bundle;
+mod bundle_store;
 mod catalog;
 mod digest;
 mod discovery;
