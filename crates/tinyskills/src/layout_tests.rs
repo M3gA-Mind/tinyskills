@@ -114,10 +114,10 @@ fn legacy_scaffold_roots_depend_on_scope() {
         legacy_scaffold_roots(Some(home), ws, SkillScope::User).len(),
         2
     );
-    assert!(legacy_scaffold_roots(None, ws, SkillScope::User).is_empty());
+    assert_eq!(legacy_scaffold_roots(None, ws, SkillScope::User), [] as [std::path::PathBuf; 0]);
     assert_eq!(
         legacy_scaffold_roots(None, ws, SkillScope::Project).len(),
         2
     );
-    assert!(legacy_scaffold_roots(Some(home), ws, SkillScope::Builtin).is_empty());
+    assert_eq!(legacy_scaffold_roots(Some(home), ws, SkillScope::Builtin), [] as [std::path::PathBuf; 0]);
 }
