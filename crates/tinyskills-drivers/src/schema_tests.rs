@@ -164,7 +164,7 @@ async fn migration_is_idempotent() {
         .migrate(&storage, &MigrateOptions::new())
         .await
         .unwrap();
-    assert!(report.ran.is_empty());
+    assert!(report.ran.first().is_none());
     assert_eq!(
         storage
             .documents()
