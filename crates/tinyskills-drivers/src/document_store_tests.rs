@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use serde_json::json;
-use tinystoragedrivers_core::{MemoryStorage, Scope, StorageBackend};
+use tinystoragedrivers_core::{MemoryStorage, Registry, Scope, StorageBackend, WriteOptions};
 
 use super::*;
 use tinyskills::{RegistryEntry, Validators};
@@ -15,8 +15,15 @@ fn catalog() -> StoredCatalog {
     StoredCatalog::new(vec![entry], 42, validators, 3)
 }
 
-fn docs(scope: &str) -> Arc<dyn DocumentStore> {
+fn prepared() -> MemoryStorage {
     let storage = MemoryStorage::new();
+    let registry = Registry::compose([crate::storage_schema()]).unwrap();
+    futures_lite_block_on(registry.prepare(&storage)).unwrap();
+    storage
+}
+
+fn docs(scope: &str) -> Arc<dyn DocumentStore> {
+    let storage = prepared();
     Arc::clone(
         storage
             .for_scope(&Scope::new(scope).unwrap())
