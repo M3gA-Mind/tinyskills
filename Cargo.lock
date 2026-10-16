@@ -950,6 +950,7 @@ name = "tinyskills-drivers"
 version = "0.5.1"
 dependencies = [
  "cap-std",
+ "serde",
  "serde_json",
  "tempfile",
  "thiserror",
