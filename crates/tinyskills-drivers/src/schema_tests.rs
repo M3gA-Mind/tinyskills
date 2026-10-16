@@ -2,7 +2,7 @@
 
 use serde_json::{Value, json};
 use tinystoragedrivers_core::{
-    CollectionSpec, DocumentStore, MemoryStorage, MigrateOptions, Precondition, Registry, Scope,
+    CollectionSpec, Item, MemoryStorage, MigrateOptions, Precondition, Registry, Scope,
     ScopedStorage, StorageBackend, WriteOptions,
 };
 
@@ -29,7 +29,8 @@ fn v1_body() -> Value {
                 "download_url": "", "source_url": null, "docs_path": null,
                 "commands": [], "env_vars": [], "license": null
             },
-            "overview": "o"
+            "overview": "o",
+            "category_label": null, "fixed_category": null, "install_identifier": null
         }],
         "fetched_at": 42,
         "validators": {"etag": "\"e\"", "last_modified": null},
@@ -122,9 +123,27 @@ async fn catalog_step_drops_rows_that_do_not_read_as_a_catalog() {
         .unwrap();
 
     let documents = storage.documents();
-    assert!(documents.get(CATALOG_COLLECTION, "future").await.unwrap().is_none());
-    assert!(documents.get(CATALOG_COLLECTION, "broken").await.unwrap().is_none());
-    assert!(documents.get(CATALOG_COLLECTION, "good").await.unwrap().is_some());
+    assert!(
+        documents
+            .get(CATALOG_COLLECTION, "future")
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        documents
+            .get(CATALOG_COLLECTION, "broken")
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        documents
+            .get(CATALOG_COLLECTION, "good")
+            .await
+            .unwrap()
+            .is_some()
+    );
 }
 
 #[tokio::test]

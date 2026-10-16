@@ -86,7 +86,7 @@ impl BlobBundles {
         Self { blobs }
     }
 
-    fn dir(&self, id: &str) -> Result<String, BlobBundleError> {
+    fn dir(id: &str) -> Result<String, BlobBundleError> {
         if !is_safe_segment(id) {
             return Err(BlobBundleError::InvalidId(id.to_owned()));
         }
@@ -108,7 +108,7 @@ impl BlobBundles {
         id: &str,
         files: Vec<MaterializeFile>,
     ) -> Result<usize, BlobBundleError> {
-        let dir = self.dir(id)?;
+        let dir = Self::dir(id)?;
         if files.is_empty() {
             return Err(BlobBundleError::Empty);
         }
@@ -151,7 +151,7 @@ impl BlobBundles {
     ///
     /// An invalid id or a backend failure.
     pub async fn delete(&self, id: &str) -> Result<bool, BlobBundleError> {
-        let dir = self.dir(id)?;
+        let dir = Self::dir(id)?;
         Ok(self.blobs.delete_tree(&dir).await? > 0)
     }
 
@@ -180,7 +180,7 @@ impl BlobBundles {
     /// [`BlobBundleError::NotFound`] when it has no files, a limit error for
     /// an oversized or too deeply nested bundle, or a backend failure.
     pub async fn read(&self, id: &str) -> Result<Vec<MaterializeFile>, BlobBundleError> {
-        let dir = self.dir(id)?;
+        let dir = Self::dir(id)?;
         let mut files = Vec::new();
         let mut pending = vec![(dir.clone(), 0usize)];
         while let Some((current, depth)) = pending.pop() {

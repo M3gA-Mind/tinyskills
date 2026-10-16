@@ -9,10 +9,8 @@
 //! The host composes [`storage_schema`] into its `Registry`, which declares
 //! the items, derives the module grant and runs the steps.
 
-use tinystoragedrivers_core::{
-    Expiry, Item, Key, Owner, Schema, ScopeClass, SourceRecord, Step, TargetRecord,
-};
 use tinyskills::StoredCatalog;
+use tinystoragedrivers_core::{Key, Owner, Schema, ScopeClass, SourceRecord, Step, TargetRecord};
 
 use crate::blob_bundles::BUNDLE_PREFIX;
 use crate::document_store::CatalogBody;
@@ -46,9 +44,13 @@ pub fn storage_schema() -> Schema {
 }
 
 fn catalogs_step() -> Step {
-    Step::new("catalogs_v2", CATALOG_COLLECTION, 1, CATALOG_SCHEMA, |batch| {
-        Ok(batch.into_iter().filter_map(catalog_v2).collect())
-    })
+    Step::new(
+        "catalogs_v2",
+        CATALOG_COLLECTION,
+        1,
+        CATALOG_SCHEMA,
+        |batch| Ok(batch.into_iter().filter_map(catalog_v2).collect()),
+    )
     .source(CATALOG_V1_COLLECTION)
 }
 
