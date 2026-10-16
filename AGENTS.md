@@ -42,7 +42,7 @@ crates/tinyskills/
 │   ├── resource.rs     # safe lookup and resource reads
 │   ├── materialize.rs  # rebuild a skill tree from documents and bundle dirs
 │   └── bundle.rs       # compile-time bundle materialization
-crates/tinyskills-drivers/   # unpublished: catalogs as documents, bundles as a blob tree, on tinystoragedrivers-core only
+crates/tinyskills-drivers/   # unpublished: catalogs as documents, bundles as a blob tree, `storage_schema()` (owner `skills`), on tinystoragedrivers-core only
 └── tests/
     ├── catalog.rs
     ├── authoring.rs
