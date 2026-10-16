@@ -1,7 +1,7 @@
 //! Skill bundle files on the host's `tinystoragedrivers` blob port.
 //!
 //! The blob store holds each bundle as a tree of blobs under
-//! `<prefix>/<bundle id>/<relative path>`. Discovery needs real directories
+//! `skills/bundles/<bundle id>/<relative path>` ([`BUNDLE_PREFIX`]). Discovery needs real directories
 //! (it walks them through capability handles), so the host does not point
 //! discovery at the store: it calls [`BlobBundles::materialize`], which reads
 //! the bundles through the blob *tree view* and rebuilds the cache directory
@@ -22,7 +22,7 @@ use tinyskills::{
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum BlobBundleError {
-    /// The bundle id or the store prefix is not a single safe path segment.
+    /// The bundle id is not a single safe path segment.
     #[error("`{0}` cannot name a stored bundle")]
     InvalidId(String),
     /// A bundle file path is empty, absolute or has an unsafe segment.
@@ -59,43 +59,38 @@ impl From<StorageError> for BlobBundleError {
     }
 }
 
-/// Bundle files in a blob store, one subtree per bundle.
+/// The blob prefix every bundle lives under, declared by
+/// [`storage_schema`](crate::storage_schema).
+pub const BUNDLE_PREFIX: &str = "skills/bundles";
+
+/// Bundle files in a blob store, one subtree per bundle under
+/// [`BUNDLE_PREFIX`].
 #[derive(Clone)]
 pub struct BlobBundles {
     blobs: Arc<dyn BlobStore>,
-    prefix: String,
 }
 
 impl std::fmt::Debug for BlobBundles {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BlobBundles")
-            .field("prefix", &self.prefix)
+            .field("prefix", &BUNDLE_PREFIX)
             .finish_non_exhaustive()
     }
 }
 
 impl BlobBundles {
-    /// Bundles under `prefix` (one safe path segment, for example `skills`).
-    ///
-    /// # Errors
-    ///
-    /// [`BlobBundleError::InvalidId`] when `prefix` is not a safe segment.
-    pub fn new(
-        blobs: Arc<dyn BlobStore>,
-        prefix: impl Into<String>,
-    ) -> Result<Self, BlobBundleError> {
-        let prefix = prefix.into();
-        if !is_safe_segment(&prefix) {
-            return Err(BlobBundleError::InvalidId(prefix));
-        }
-        Ok(Self { blobs, prefix })
+    /// Bundles in `blobs`, under [`BUNDLE_PREFIX`]. The host picks the
+    /// backend and the tenant scope when it builds the handle.
+    #[must_use]
+    pub fn new(blobs: Arc<dyn BlobStore>) -> Self {
+        Self { blobs }
     }
 
     fn dir(&self, id: &str) -> Result<String, BlobBundleError> {
         if !is_safe_segment(id) {
             return Err(BlobBundleError::InvalidId(id.to_owned()));
         }
-        Ok(format!("{}/{id}", self.prefix))
+        Ok(format!("{BUNDLE_PREFIX}/{id}"))
     }
 
     /// Store `files` as bundle `id`, replacing the previous content: files
@@ -168,7 +163,7 @@ impl BlobBundles {
     pub async fn list(&self) -> Result<Vec<String>, BlobBundleError> {
         Ok(self
             .blobs
-            .list_dir(&self.prefix)
+            .list_dir(BUNDLE_PREFIX)
             .await?
             .into_iter()
             .filter_map(|entry| match entry {

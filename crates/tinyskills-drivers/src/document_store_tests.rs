@@ -1,7 +1,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use serde_json::json;
-use tinystoragedrivers_core::{MemoryStorage, Registry, Scope, StorageBackend, WriteOptions};
+use tinystoragedrivers_core::{
+    MemoryStorage, Precondition, Registry, Scope, StorageBackend, WriteOptions,
+};
 
 use super::*;
 use tinyskills::{RegistryEntry, Validators};
@@ -15,15 +17,17 @@ fn catalog() -> StoredCatalog {
     StoredCatalog::new(vec![entry], 42, validators, 3)
 }
 
-fn prepared() -> MemoryStorage {
+async fn prepared() -> MemoryStorage {
     let storage = MemoryStorage::new();
-    let registry = Registry::compose([crate::storage_schema()]).unwrap();
-    futures_lite_block_on(registry.prepare(&storage)).unwrap();
+    Registry::compose([crate::storage_schema()])
+        .unwrap()
+        .prepare(&storage)
+        .await
+        .unwrap();
     storage
 }
 
-fn docs(scope: &str) -> Arc<dyn DocumentStore> {
-    let storage = prepared();
+fn handle(storage: &MemoryStorage, scope: &str) -> Arc<dyn DocumentStore> {
     Arc::clone(
         storage
             .for_scope(&Scope::new(scope).unwrap())
@@ -32,9 +36,13 @@ fn docs(scope: &str) -> Arc<dyn DocumentStore> {
     )
 }
 
+async fn docs(scope: &str) -> Arc<dyn DocumentStore> {
+    handle(&prepared().await, scope)
+}
+
 #[tokio::test]
 async fn round_trips_and_replaces() {
-    let store = DocumentCatalogStore::new(docs("alice"));
+    let store = DocumentCatalogStore::new(docs("alice").await);
     assert_eq!(store.load("example").await.unwrap(), None);
     store.save("example", &catalog()).await.unwrap();
     assert_eq!(store.load("example").await.unwrap(), Some(catalog()));
@@ -46,8 +54,26 @@ async fn round_trips_and_replaces() {
 }
 
 #[tokio::test]
+async fn stores_the_v2_body_under_the_catalog_collection() {
+    let documents = docs("alice").await;
+    let store = DocumentCatalogStore::new(Arc::clone(&documents));
+    store.save("example", &catalog()).await.unwrap();
+    let found = documents
+        .get("skills.catalogs", "example")
+        .await
+        .unwrap()
+        .unwrap();
+    let body = found.doc.as_object().unwrap();
+    assert_eq!(body["fetched_ms"], json!(42_000));
+    assert_eq!(body["skipped"], json!(3));
+    assert!(body.contains_key("entries") && body.contains_key("validators"));
+    assert!(!body.contains_key("format") && !body.contains_key("fetched_at"));
+    assert_eq!(found.meta.schema, 2);
+}
+
+#[tokio::test]
 async fn shares_state_across_clones_and_arc() {
-    let store = DocumentCatalogStore::new(docs("alice"));
+    let store = DocumentCatalogStore::new(docs("alice").await);
     let copy = store.clone();
     store.save("r", &catalog()).await.unwrap();
     assert_eq!(copy.load("r").await.unwrap(), Some(catalog()));
@@ -57,7 +83,7 @@ async fn shares_state_across_clones_and_arc() {
 
 #[tokio::test]
 async fn refuses_unsafe_ids() {
-    let store = DocumentCatalogStore::new(docs("alice"));
+    let store = DocumentCatalogStore::new(docs("alice").await);
     for id in ["", "..", "a/b", "a b"] {
         assert_eq!(
             store.load(id).await,
@@ -71,39 +97,37 @@ async fn refuses_unsafe_ids() {
 }
 
 #[tokio::test]
-async fn other_formats_read_as_absent_and_bad_documents_as_corrupt() {
-    let documents = docs("alice");
+async fn other_schemas_read_as_absent_and_bad_documents_as_corrupt() {
+    let documents = docs("alice").await;
     let store = DocumentCatalogStore::new(Arc::clone(&documents));
-    let put = |doc: serde_json::Value| {
+    let put = |doc: serde_json::Value, schema: u32| {
         let documents = Arc::clone(&documents);
         async move {
             documents
-                .put(CATALOG_COLLECTION, "r", doc, Precondition::None)
+                .put_with(
+                    "skills.catalogs",
+                    "r",
+                    doc,
+                    Precondition::None,
+                    WriteOptions::new().schema(schema),
+                )
                 .await
                 .unwrap();
         }
     };
-    put(json!({"format": 99, "entries": []})).await;
+    put(json!({"entries": []}), 99).await;
     assert_eq!(store.load("r").await.unwrap(), None);
-    put(json!({"entries": []})).await;
+    put(json!({"entries": []}), 0).await;
     assert_eq!(store.load("r").await.unwrap(), None);
-    put(json!({"format": 1, "entries": 5})).await;
+    put(json!({"entries": 5}), 2).await;
     assert!(matches!(store.load("r").await, Err(StoreError::Corrupt(_))));
 }
 
 #[tokio::test]
 async fn scopes_are_isolated() {
-    let storage = MemoryStorage::new();
-    let handle = |name: &str| {
-        Arc::clone(
-            storage
-                .for_scope(&Scope::new(name).unwrap())
-                .unwrap()
-                .documents(),
-        )
-    };
-    let alice = DocumentCatalogStore::new(handle("alice"));
-    let bob = DocumentCatalogStore::new(handle("bob"));
+    let storage = prepared().await;
+    let alice = DocumentCatalogStore::new(handle(&storage, "alice"));
+    let bob = DocumentCatalogStore::new(handle(&storage, "bob"));
     alice.save("r", &catalog()).await.unwrap();
     assert_eq!(bob.load("r").await.unwrap(), None);
 }
