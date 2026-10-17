@@ -2,27 +2,64 @@
 
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
 use tinystoragedrivers_core::{
-    CollectionSpec, DocumentStore, ErrorKind, Precondition, StorageError,
+    DocumentStore, ErrorKind, Key, Precondition, StorageError, WriteOptions,
 };
-use tokio::sync::OnceCell;
 
-use tinyskills::{BoxFuture, CatalogStore, StoreError, StoredCatalog, is_safe_segment};
+use tinyskills::{
+    BoxFuture, CatalogStore, RegistryEntry, StoreError, StoredCatalog, Validators, is_safe_segment,
+};
 
-/// The collection that holds one document per registry.
-pub const CATALOG_COLLECTION: &str = "tinyskills_catalogs";
+use crate::schema::{CATALOG_COLLECTION, CATALOG_SCHEMA};
 
-/// Fetched catalogs as documents, `tinyskills_catalogs/<registry>`.
+/// The stored body of one catalog (`skills.catalogs`, schema 2): the
+/// [`StoredCatalog`] fields with the fetch time in epoch milliseconds and no
+/// `format` field, since the document's schema version says it.
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub(crate) struct CatalogBody {
+    entries: Vec<RegistryEntry>,
+    fetched_ms: i64,
+    validators: Validators,
+    skipped: usize,
+}
+
+impl CatalogBody {
+    /// The body for `catalog`.
+    pub(crate) fn from_stored(catalog: &StoredCatalog) -> Self {
+        Self {
+            entries: catalog.entries.clone(),
+            fetched_ms: i64::try_from(catalog.fetched_at)
+                .unwrap_or(i64::MAX)
+                .saturating_mul(1000),
+            validators: catalog.validators.clone(),
+            skipped: catalog.skipped,
+        }
+    }
+
+    fn into_stored(self) -> StoredCatalog {
+        StoredCatalog::new(
+            self.entries,
+            u64::try_from(self.fetched_ms).unwrap_or(0) / 1000,
+            self.validators,
+            self.skipped,
+        )
+    }
+}
+
+/// Fetched catalogs as documents, `skills.catalogs/<registry>`.
 ///
 /// The host picks the backend (`SQLite`, `MongoDB`, memory) and the tenant scope
 /// when it builds the [`DocumentStore`] handle; this store never names either.
-/// A document in another format reads as absent, and one that does not decode
-/// reads as [`StoreError::Corrupt`]. A failing backend surfaces as
+/// The collection is declared by [`storage_schema`](crate::storage_schema)
+/// through the host's `Registry`, never by this store. A document written at
+/// another schema version reads as absent, and one that does not decode reads
+/// as [`StoreError::Corrupt`]. A failing backend surfaces as
 /// [`StoreError::Io`], never as an absent catalog.
 #[derive(Clone)]
 pub struct DocumentCatalogStore {
     documents: Arc<dyn DocumentStore>,
-    ready: Arc<OnceCell<()>>,
 }
 
 impl std::fmt::Debug for DocumentCatalogStore {
@@ -33,33 +70,19 @@ impl std::fmt::Debug for DocumentCatalogStore {
 }
 
 impl DocumentCatalogStore {
-    /// A store on `documents`; the collection is declared on first use.
+    /// A store on `documents`, the tenant-scoped handle of the host's backend.
     #[must_use]
     pub fn new(documents: Arc<dyn DocumentStore>) -> Self {
-        Self {
-            documents,
-            ready: Arc::new(OnceCell::new()),
-        }
+        Self { documents }
     }
 
-    async fn ensure(&self) -> Result<(), StoreError> {
-        self.ready
-            .get_or_try_init(|| async {
-                self.documents
-                    .ensure_collection(&CollectionSpec::new(CATALOG_COLLECTION))
-                    .await
-            })
-            .await
-            .map_err(|error| storage_error(&error))?;
-        Ok(())
-    }
-
-    fn check(registry: &str) -> Result<(), StoreError> {
-        if is_safe_segment(registry) {
-            Ok(())
-        } else {
-            Err(StoreError::InvalidId(registry.to_owned()))
+    fn id(registry: &str) -> Result<String, StoreError> {
+        if !is_safe_segment(registry) {
+            return Err(StoreError::InvalidId(registry.to_owned()));
         }
+        Key::of([registry])
+            .map(|key| key.as_str().to_owned())
+            .map_err(|_| StoreError::InvalidId(registry.to_owned()))
     }
 }
 
@@ -76,26 +99,20 @@ impl CatalogStore for DocumentCatalogStore {
         registry: &'a str,
     ) -> BoxFuture<'a, Result<Option<StoredCatalog>, StoreError>> {
         Box::pin(async move {
-            Self::check(registry)?;
-            self.ensure().await?;
+            let id = Self::id(registry)?;
             let Some(found) = self
                 .documents
-                .get(CATALOG_COLLECTION, registry)
+                .get(CATALOG_COLLECTION, &id)
                 .await
                 .map_err(|error| storage_error(&error))?
             else {
                 return Ok(None);
             };
-            let format = found
-                .doc
-                .get("format")
-                .and_then(serde_json::Value::as_u64)
-                .unwrap_or(0);
-            if format != u64::from(StoredCatalog::FORMAT) {
+            if found.meta.schema != CATALOG_SCHEMA {
                 return Ok(None);
             }
-            serde_json::from_value(found.doc)
-                .map(Some)
+            serde_json::from_value::<CatalogBody>(found.doc)
+                .map(|body| Some(body.into_stored()))
                 .map_err(|error| StoreError::Corrupt(error.to_string()))
         })
     }
@@ -106,12 +123,17 @@ impl CatalogStore for DocumentCatalogStore {
         catalog: &'a StoredCatalog,
     ) -> BoxFuture<'a, Result<(), StoreError>> {
         Box::pin(async move {
-            Self::check(registry)?;
-            self.ensure().await?;
-            let doc =
-                serde_json::to_value(catalog).map_err(|error| StoreError::Io(error.to_string()))?;
+            let id = Self::id(registry)?;
+            let doc = serde_json::to_value(CatalogBody::from_stored(catalog))
+                .map_err(|error| StoreError::Io(error.to_string()))?;
             self.documents
-                .put(CATALOG_COLLECTION, registry, doc, Precondition::None)
+                .put_with(
+                    CATALOG_COLLECTION,
+                    &id,
+                    doc,
+                    Precondition::None,
+                    WriteOptions::new().schema(CATALOG_SCHEMA),
+                )
                 .await
                 .map(|_| ())
                 .map_err(|error| storage_error(&error))

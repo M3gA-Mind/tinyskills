@@ -256,8 +256,12 @@ GPL-3.0-only. See [LICENSE](LICENSE).
 `tinyskills-drivers` (an unpublished workspace crate that depends on
 `tinystoragedrivers-core` only) puts the host's storage under the crate:
 `DocumentCatalogStore` keeps fetched registry catalogs as documents
-(`tinyskills_catalogs/<registry>`), and `BlobBundles` keeps bundle files as a
-blob tree (`<prefix>/<bundle id>/<path>`). Discovery needs real directories, so
+(`skills.catalogs/<registry>`), and `BlobBundles` keeps bundle files as a
+blob tree (`skills/bundles/<bundle id>/<path>`). `storage_schema()` declares
+both under the owner `skills` (tenant scope) for the host's `Registry::compose`,
+with the step that moves the v1 `tinyskills_catalogs` collection into
+`skills.catalogs`. v1 bundle blobs lived under a host-chosen prefix, so the
+host moves them itself (a step cannot read a prefix that contains the new one). Discovery needs real directories, so
 the host calls `BlobBundles::materialize` to rebuild a cache directory from the
 blob tree; the write goes through `materialize_tree` with the new
 `MaterializeSource::Files`. The host picks the backend and the tenant scope.

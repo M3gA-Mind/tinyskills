@@ -16,7 +16,7 @@ fn blobs(scope: &str) -> Arc<dyn BlobStore> {
 }
 
 fn bundles() -> BlobBundles {
-    BlobBundles::new(blobs("alice"), "skills").unwrap()
+    BlobBundles::new(blobs("alice"))
 }
 
 fn skill() -> Vec<MaterializeFile> {
@@ -81,10 +81,6 @@ async fn a_bundle_id_is_not_a_prefix_match() {
 
 #[tokio::test]
 async fn refuses_unsafe_input() {
-    assert!(matches!(
-        BlobBundles::new(blobs("alice"), "a/b"),
-        Err(BlobBundleError::InvalidId(_))
-    ));
     let bundles = bundles();
     for id in ["", "..", "a/b"] {
         assert!(matches!(
@@ -126,10 +122,10 @@ async fn refuses_unsafe_input() {
 #[tokio::test]
 async fn read_refuses_too_deep_and_oversized_stored_bundles() {
     let store = blobs("alice");
-    let bundles = BlobBundles::new(Arc::clone(&store), "skills").unwrap();
+    let bundles = BlobBundles::new(Arc::clone(&store));
     let deep = vec!["d"; MAX_MATERIALIZE_DEPTH + 2].join("/");
     store
-        .put(&format!("skills/a/{deep}/f"), b"x".to_vec(), None)
+        .put(&format!("skills/bundles/a/{deep}/f"), b"x".to_vec(), None)
         .await
         .unwrap();
     assert!(matches!(
@@ -137,7 +133,7 @@ async fn read_refuses_too_deep_and_oversized_stored_bundles() {
         Err(BlobBundleError::TooDeep(_))
     ));
     let big = vec![0u8; usize::try_from(MAX_MATERIALIZE_FILE_BYTES).unwrap() + 1];
-    store.put("skills/b/big", big, None).await.unwrap();
+    store.put("skills/bundles/b/big", big, None).await.unwrap();
     assert!(matches!(
         bundles.read("b").await,
         Err(BlobBundleError::TooLarge { .. })
@@ -218,4 +214,28 @@ fn storage_errors_become_backend_errors() {
     ));
     assert!(matches!(error, BlobBundleError::Backend(_)));
     assert!(format!("{:?}", bundles()).contains("skills"));
+}
+
+#[tokio::test]
+async fn bundle_files_live_under_the_v2_blob_prefix() {
+    let store = blobs("alice");
+    let bundles = BlobBundles::new(Arc::clone(&store));
+    bundles.publish("a", skill()).await.unwrap();
+    let mut keys: Vec<String> = store
+        .list("")
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|meta| meta.key)
+        .collect();
+    keys.sort();
+    assert_eq!(
+        keys,
+        [
+            "skills/bundles/a/SKILL.md",
+            "skills/bundles/a/references/deep/notes.md",
+            "skills/bundles/a/scripts/run.sh",
+        ]
+    );
+    assert_eq!(BUNDLE_PREFIX, "skills/bundles");
 }
