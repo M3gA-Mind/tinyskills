@@ -245,7 +245,7 @@ fn read_zip(bytes: &[u8], limits: &ArchiveLimits) -> Result<Vec<Entry>, ArchiveE
     let mut wanted = Vec::new();
     for index in 0..archive.len() {
         let entry = archive.by_index_raw(index).map_err(unreadable)?;
-        let path = entry.name().to_string();
+        let path = entry.name().map_err(unreadable)?.into_owned();
         check_entry_path(&path)?;
         let path = normalize_entry_path(&path);
         if path.is_empty() {
@@ -268,7 +268,7 @@ fn read_zip(bytes: &[u8], limits: &ArchiveLimits) -> Result<Vec<Entry>, ArchiveE
     let mut remaining = limits.max_bytes;
     for index in wanted {
         let entry = archive.by_index(index).map_err(unreadable)?;
-        let path = normalize_entry_path(entry.name()).to_string();
+        let path = normalize_entry_path(&entry.name().map_err(unreadable)?).to_string();
         let bytes = read_bounded(entry, &mut remaining, limits.max_bytes)?;
         files.push(Entry { path, bytes });
     }
