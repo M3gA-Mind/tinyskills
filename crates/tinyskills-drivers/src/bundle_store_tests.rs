@@ -24,6 +24,9 @@ struct ReadGate {
 struct GatedBlobs {
     inner: Arc<dyn BlobStore>,
     gate: Arc<ReadGate>,
+    fail_get: bool,
+    fail_put: bool,
+    fail_list: bool,
 }
 
 #[async_trait]
@@ -34,9 +37,11 @@ impl BlobStore for GatedBlobs {
         bytes: Vec<u8>,
         content_type: Option<&str>,
     ) -> Result<BlobMeta, StorageError> {
+        if self.fail_put { return Err(StorageError::backend("injected blob write failure")); }
         self.inner.put(key, bytes, content_type).await
     }
     async fn get(&self, key: &str) -> Result<Option<Blob>, StorageError> {
+        if self.fail_get { return Err(StorageError::backend("injected blob read failure")); }
         if key.starts_with("skills/bundles/demo/") && self.gate.armed.swap(false, Ordering::SeqCst)
         {
             self.gate.started.notify_one();
@@ -58,6 +63,7 @@ impl BlobStore for GatedBlobs {
         self.inner.delete(key).await
     }
     async fn list(&self, prefix: &str) -> Result<Vec<BlobMeta>, StorageError> {
+        if self.fail_list { return Err(StorageError::backend("injected blob list failure")); }
         self.inner.list(prefix).await
     }
     fn capabilities(&self) -> Capabilities {
@@ -105,6 +111,9 @@ fn store_with_gate(storage: &MemoryStorage, gate: Arc<ReadGate>) -> DocumentBund
         Arc::new(GatedBlobs {
             inner: Arc::clone(scoped.blobs()),
             gate,
+        fail_get: false,
+        fail_put: false,
+        fail_list: false,
         }),
     )
 }
