@@ -66,7 +66,7 @@ fn schema_declares_the_v2_items_under_the_skills_owner() {
     let names: Vec<_> = schema.items.iter().map(Item::name).collect();
     assert_eq!(
         names,
-        ["skills.catalogs", "skills.bundle_heads", "skills/bundles"]
+        ["skills.catalogs", "skills.bundles", "skills/bundles"]
     );
     assert!(
         schema
