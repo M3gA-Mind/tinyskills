@@ -46,7 +46,7 @@ impl BlobStore for GatedBlobs {
         if self.fail_get {
             return Err(StorageError::backend("injected blob read failure"));
         }
-        if key.starts_with("skills/bundles/demo/") && self.gate.armed.swap(false, Ordering::SeqCst)
+        if key.starts_with("skills/bundle-generations/demo/") && self.gate.armed.swap(false, Ordering::SeqCst)
         {
             self.gate.started.notify_one();
             self.gate.release.notified().await;
@@ -212,7 +212,7 @@ async fn workflow_primary_round_trips_and_corrupt_digest_is_refused() {
             .doc,
     )
     .unwrap();
-    let key = format!("{BUNDLE_PREFIX}/flow/{}/WORKFLOW.md", head.generation);
+    let key = format!("{BUNDLE_GENERATION_PREFIX}/flow/{}/WORKFLOW.md", head.generation);
     blobs.put(&key, b"tampered".to_vec(), None).await.unwrap();
     assert!(matches!(
         store.read("flow").await,
@@ -290,7 +290,7 @@ async fn content_generations_are_reused_only_for_identical_bytes() {
         generation
     );
     let file = &content.files()[0];
-    let key = format!("{BUNDLE_PREFIX}/demo/{generation}/{}", file.path);
+    let key = format!("{BUNDLE_GENERATION_PREFIX}/demo/{generation}/{}", file.path);
     let scoped = storage.for_scope(&Scope::new("alice").unwrap()).unwrap();
     scoped
         .blobs()
