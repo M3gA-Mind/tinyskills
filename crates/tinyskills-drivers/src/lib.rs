@@ -20,7 +20,7 @@ mod bundle_store;
 mod document_store;
 mod schema;
 
-pub use blob_bundles::{BUNDLE_PREFIX, BlobBundleError, BlobBundles};
+pub use blob_bundles::{BUNDLE_GENERATION_PREFIX, BUNDLE_PREFIX, BlobBundleError, BlobBundles};
 pub use bundle_store::{BUNDLE_COLLECTION, DocumentBundleStore};
 pub use document_store::DocumentCatalogStore;
 pub use schema::{CATALOG_COLLECTION, storage_schema};

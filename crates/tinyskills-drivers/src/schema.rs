@@ -5,6 +5,7 @@
 //! |---|---|---|
 //! | collection `tinyskills_catalogs` | collection `skills.catalogs` (schema 2) | tenant |
 //! | blobs `<host prefix>/<bundle id>/…` | blobs `skills/bundles/<bundle id>/…` | tenant |
+//! | — | blobs `skills/bundle-generations/<bundle id>/<generation>/…` | tenant |
 //! | — | collection `skills.bundles` (schema 1) | tenant |
 //!
 //! The host composes [`storage_schema`] into its `Registry`, which declares
@@ -15,7 +16,7 @@ use tinystoragedrivers_core::{Key, Owner, Schema, ScopeClass, SourceRecord, Step
 
 use crate::document_store::CatalogBody;
 use crate::{
-    blob_bundles::BUNDLE_PREFIX,
+    blob_bundles::{BUNDLE_GENERATION_PREFIX, BUNDLE_PREFIX},
     bundle_store::{BUNDLE_COLLECTION, BUNDLE_SCHEMA},
 };
 
@@ -30,8 +31,9 @@ pub(crate) const CATALOG_SCHEMA: u32 = 2;
 
 /// Everything `tinyskills-drivers` stores, as the owner `skills`:
 /// the catalog collection `skills.catalogs`, the bundle head collection
-/// `skills.bundles`, and the immutable bundle blob prefix
-/// `skills/bundles`, all tenant scoped, plus the step that moves
+/// `skills.bundles`, the user-facing bundle blob prefix `skills/bundles`, and
+/// the disjoint immutable generation prefix `skills/bundle-generations`, all
+/// tenant scoped, plus the step that moves
 /// `tinyskills_catalogs` into `skills.catalogs`.
 ///
 /// # Panics
@@ -46,6 +48,7 @@ pub fn storage_schema() -> Schema {
         .collection(CATALOG_COLLECTION, CATALOG_SCHEMA, ScopeClass::Tenant)
         .collection(BUNDLE_COLLECTION, BUNDLE_SCHEMA, ScopeClass::Tenant)
         .blobs(BUNDLE_PREFIX, ScopeClass::Tenant)
+        .blobs(BUNDLE_GENERATION_PREFIX, ScopeClass::Tenant)
         .step(catalogs_step())
 }
 
