@@ -79,6 +79,9 @@ impl DocumentBundleStore {
         else {
             return Ok(None);
         };
+        if row.meta.schema != BUNDLE_SCHEMA {
+            return Err(BundleStoreError::Corrupt);
+        }
         let head = serde_json::from_value(row.doc).map_err(|_| BundleStoreError::Corrupt)?;
         Ok(Some((head, row.version)))
     }
@@ -207,8 +210,27 @@ impl DocumentBundleStore {
         }
         let generation = format!("{revision}-{}", content.digest());
         let prefix = format!("{BUNDLE_GENERATION_PREFIX}/{id}/{generation}");
+        let expected_keys: std::collections::BTreeSet<_> = content
+            .files()
+            .iter()
+            .map(|file| format!("{prefix}/{}", file.path))
+            .collect();
+        let mut existing = self
+            .blobs
+            .list(&format!("{prefix}/"))
+            .await
+            .map_err(backend)?;
+        existing.sort_by(|a, b| a.key.cmp(&b.key));
+        if existing.iter().any(|meta| !expected_keys.contains(&meta.key)) {
+            return Err(BundleStoreError::Corrupt);
+        }
         for file in content.files() {
             let key = format!("{prefix}/{}", file.path);
+            if let Some(meta) = existing.iter().find(|meta| meta.key == key) {
+                if meta.len != file.bytes.len() as u64 {
+                    return Err(BundleStoreError::Corrupt);
+                }
+            }
             match self.blobs.get(&key).await.map_err(backend)? {
                 Some(existing) if existing.bytes == file.bytes => {}
                 Some(_) => return Err(BundleStoreError::Corrupt),
@@ -359,8 +381,12 @@ impl BundleStore for DocumentBundleStore {
                     return Ok(output);
                 }
                 for row in page.items {
+                    Self::id(&row.id).map_err(|_| BundleStoreError::Corrupt)?;
                     if after.is_some_and(|cursor| row.id.as_str() <= cursor) {
                         continue;
+                    }
+                    if row.meta.schema != BUNDLE_SCHEMA {
+                        return Err(BundleStoreError::Corrupt);
                     }
                     let head: Head =
                         serde_json::from_value(row.doc).map_err(|_| BundleStoreError::Corrupt)?;
