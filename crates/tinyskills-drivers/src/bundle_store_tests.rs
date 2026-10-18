@@ -80,6 +80,24 @@ fn store(storage: &MemoryStorage, scope: &str) -> DocumentBundleStore {
     DocumentBundleStore::new(Arc::clone(scoped.documents()), Arc::clone(scoped.blobs()))
 }
 
+fn parts(storage: &MemoryStorage) -> (Arc<dyn DocumentStore>, Arc<dyn BlobStore>) {
+    let scoped = storage.for_scope(&Scope::new("alice").unwrap()).unwrap();
+    (Arc::clone(scoped.documents()), Arc::clone(scoped.blobs()))
+}
+
+async fn put_head(documents: &dyn DocumentStore, id: &str, head: serde_json::Value) {
+    documents
+        .put_with(
+            BUNDLE_COLLECTION,
+            id,
+            head,
+            Precondition::None,
+            WriteOptions::new().schema(BUNDLE_SCHEMA),
+        )
+        .await
+        .unwrap();
+}
+
 fn store_with_gate(storage: &MemoryStorage, gate: Arc<ReadGate>) -> DocumentBundleStore {
     let scoped = storage.for_scope(&Scope::new("alice").unwrap()).unwrap();
     DocumentBundleStore::new(
@@ -126,6 +144,124 @@ async fn compare_and_swap_conflict_preserves_the_winning_head() {
         actual.content.digest() == content("two").digest()
             || actual.content.digest() == content("three").digest()
     );
+}
+
+#[tokio::test]
+async fn absent_reads_and_store_debug_are_stable() {
+    let storage = prepared().await;
+    let store = store(&storage, "alice");
+    assert_eq!(store.read("missing").await.unwrap(), None);
+    assert!(format!("{store:?}").contains("DocumentBundleStore"));
+}
+
+#[tokio::test]
+async fn workflow_primary_round_trips_and_corrupt_digest_is_refused() {
+    let storage = prepared().await;
+    let (documents, blobs) = parts(&storage);
+    let store = DocumentBundleStore::new(Arc::clone(&documents), Arc::clone(&blobs));
+    let workflow = UserBundle::new(
+        BundleDocument::Workflow,
+        "workflow".into(),
+        Vec::new(),
+        BundleLimits::default(),
+    )
+    .unwrap();
+    store.publish("flow", None, &workflow).await.unwrap();
+    assert_eq!(store.read("flow").await.unwrap().unwrap().content, workflow);
+
+    let head: Head = serde_json::from_value(
+        documents
+            .get(BUNDLE_COLLECTION, "flow")
+            .await
+            .unwrap()
+            .unwrap()
+            .doc,
+    )
+    .unwrap();
+    let key = format!("{BUNDLE_PREFIX}/flow/{}/WORKFLOW.md", head.generation);
+    blobs.put(&key, b"tampered".to_vec(), None).await.unwrap();
+    assert!(matches!(
+        store.read("flow").await,
+        Err(BundleStoreError::Corrupt)
+    ));
+}
+
+#[tokio::test]
+async fn malformed_heads_and_unknown_primary_documents_are_corrupt() {
+    let storage = prepared().await;
+    let (documents, blobs) = parts(&storage);
+    let store = DocumentBundleStore::new(Arc::clone(&documents), Arc::clone(&blobs));
+    put_head(&*documents, "malformed", serde_json::json!({"revision": 1})).await;
+    assert!(matches!(
+        store.read("malformed").await,
+        Err(BundleStoreError::Corrupt)
+    ));
+    assert!(matches!(
+        store.list(None, 10).await,
+        Err(BundleStoreError::Corrupt)
+    ));
+
+    put_head(&*documents, "primary", serde_json::json!({"revision":1,"tombstone":false,"primary":"unknown","digest":"x","generation":"g"})).await;
+    assert!(matches!(
+        store.read("primary").await,
+        Err(BundleStoreError::Corrupt)
+    ));
+    assert!(matches!(
+        store.list(None, 10).await,
+        Err(BundleStoreError::Corrupt)
+    ));
+}
+
+#[tokio::test]
+async fn stale_and_missing_deletes_report_the_current_visible_revision() {
+    let storage = prepared().await;
+    let store = store(&storage, "alice");
+    assert!(matches!(
+        store.delete("missing", BundleRevision(1)).await,
+        Err(BundleStoreError::Conflict { current: None })
+    ));
+    let current = store.publish("demo", None, &content("one")).await.unwrap();
+    assert!(
+        matches!(store.delete("demo", BundleRevision(9)).await, Err(BundleStoreError::Conflict { current: Some(revision) }) if revision == current)
+    );
+}
+
+#[tokio::test]
+async fn reads_and_zero_limit_listing_preserve_document_backend_refusals() {
+    let storage = MemoryStorage::new();
+    let store = store(&storage, "alice");
+    assert!(matches!(
+        store.read("missing").await,
+        Err(BundleStoreError::Backend(_))
+    ));
+    assert!(matches!(
+        store.list(None, 0).await,
+        Err(BundleStoreError::Backend(_))
+    ));
+}
+
+#[tokio::test]
+async fn content_generations_are_reused_only_for_identical_bytes() {
+    let storage = prepared().await;
+    let store = store(&storage, "alice");
+    let content = content("same");
+    let generation = store.write_content("demo", 7, &content).await.unwrap();
+    assert_eq!(
+        store.write_content("demo", 7, &content).await.unwrap(),
+        generation
+    );
+    let file = &content.files()[0];
+    let key = format!("{BUNDLE_PREFIX}/demo/{generation}/{}", file.path);
+    let scoped = storage.for_scope(&Scope::new("alice").unwrap()).unwrap();
+    scoped
+        .blobs()
+        .put(&key, b"different".to_vec(), None)
+        .await
+        .unwrap();
+    assert!(matches!(
+        store.write_content("demo", 7, &content).await,
+        Err(BundleStoreError::Corrupt)
+    ));
 }
 
 #[tokio::test]

@@ -238,7 +238,7 @@ impl BundleStore for DocumentBundleStore {
             if let Some(cursor) = after {
                 Self::id(cursor)?;
             }
-            let mut query = Query::all();
+            let mut query = Query::all().limit(limit.max(1));
             let mut output = Vec::new();
             loop {
                 let page = self
