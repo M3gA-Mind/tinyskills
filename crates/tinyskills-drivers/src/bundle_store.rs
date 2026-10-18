@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use serde_json;
 use tinyskills::{
     BundleDocument, BundleFile, BundleFuture, BundleLimits, BundleRevision, BundleStore,
     BundleStoreError, BundleSummary, StoredBundle, UserBundle, is_safe_segment,
