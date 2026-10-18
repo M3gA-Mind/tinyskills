@@ -116,12 +116,11 @@ impl DocumentBundleStore {
                 return Err(BundleStoreError::Corrupt);
             }
         }
-        let max_file_bytes = head
-            .manifest
-            .iter()
-            .map(|entry| entry.bytes as usize)
-            .max()
-            .unwrap_or(0);
+        let max_file_bytes = head.manifest.iter().try_fold(0usize, |max, entry| {
+            usize::try_from(entry.bytes)
+                .map(|bytes| max.max(bytes))
+                .map_err(|_| BundleStoreError::Corrupt)
+        })?;
         let max_path_bytes = head
             .manifest
             .iter()

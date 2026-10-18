@@ -281,6 +281,36 @@ async fn list_rejects_malformed_digest_metadata() {
 }
 
 #[tokio::test]
+async fn oversized_manifest_is_refused_before_blob_reads() {
+    let storage = prepared().await;
+    let (documents, _) = parts(&storage);
+    let writer = DocumentBundleStore::new(Arc::clone(&documents), parts(&storage).1);
+    writer.publish("demo", None, &content("one")).await.unwrap();
+    let row = documents
+        .get(BUNDLE_COLLECTION, "demo")
+        .await
+        .unwrap()
+        .unwrap();
+    let mut doc = row.doc;
+    doc["manifest"][0]["bytes"] = serde_json::Value::from((MAX_FILE_BYTES as u64) + 1);
+    documents
+        .put_with(
+            BUNDLE_COLLECTION,
+            "demo",
+            doc,
+            Precondition::Version(row.version),
+            WriteOptions::new().schema(BUNDLE_SCHEMA),
+        )
+        .await
+        .unwrap();
+    let refusing_blobs = store_with_blob_fault(&storage, true, false, false);
+    assert!(matches!(
+        refusing_blobs.read("demo").await,
+        Err(BundleStoreError::Corrupt)
+    ));
+}
+
+#[tokio::test]
 async fn stale_and_missing_deletes_report_the_current_visible_revision() {
     let storage = prepared().await;
     let store = store(&storage, "alice");
