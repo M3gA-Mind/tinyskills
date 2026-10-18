@@ -967,6 +967,7 @@ dependencies = [
 name = "tinyskills-drivers"
 version = "0.5.1"
 dependencies = [
+ "async-trait",
  "cap-std",
  "serde",
  "serde_json",

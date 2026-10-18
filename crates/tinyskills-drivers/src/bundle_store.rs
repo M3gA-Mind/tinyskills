@@ -8,8 +8,8 @@ use tinyskills::{
     BundleStoreError, BundleSummary, StoredBundle, UserBundle, is_safe_segment,
 };
 use tinystoragedrivers_core::{
-    BlobStore, DocumentStore, ErrorKind, Key, MAX_ID_LEN, Precondition, Query, StorageError, Version,
-    WriteOptions,
+    BlobStore, DocumentStore, ErrorKind, Key, MAX_ID_LEN, Precondition, Query, StorageError,
+    Version, WriteOptions,
 };
 
 use crate::BUNDLE_PREFIX;
