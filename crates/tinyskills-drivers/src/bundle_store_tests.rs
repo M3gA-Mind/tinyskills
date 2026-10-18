@@ -37,11 +37,15 @@ impl BlobStore for GatedBlobs {
         bytes: Vec<u8>,
         content_type: Option<&str>,
     ) -> Result<BlobMeta, StorageError> {
-        if self.fail_put { return Err(StorageError::backend("injected blob write failure")); }
+        if self.fail_put {
+            return Err(StorageError::backend("injected blob write failure"));
+        }
         self.inner.put(key, bytes, content_type).await
     }
     async fn get(&self, key: &str) -> Result<Option<Blob>, StorageError> {
-        if self.fail_get { return Err(StorageError::backend("injected blob read failure")); }
+        if self.fail_get {
+            return Err(StorageError::backend("injected blob read failure"));
+        }
         if key.starts_with("skills/bundles/demo/") && self.gate.armed.swap(false, Ordering::SeqCst)
         {
             self.gate.started.notify_one();
@@ -63,7 +67,9 @@ impl BlobStore for GatedBlobs {
         self.inner.delete(key).await
     }
     async fn list(&self, prefix: &str) -> Result<Vec<BlobMeta>, StorageError> {
-        if self.fail_list { return Err(StorageError::backend("injected blob list failure")); }
+        if self.fail_list {
+            return Err(StorageError::backend("injected blob list failure"));
+        }
         self.inner.list(prefix).await
     }
     fn capabilities(&self) -> Capabilities {
@@ -111,9 +117,28 @@ fn store_with_gate(storage: &MemoryStorage, gate: Arc<ReadGate>) -> DocumentBund
         Arc::new(GatedBlobs {
             inner: Arc::clone(scoped.blobs()),
             gate,
-        fail_get: false,
-        fail_put: false,
-        fail_list: false,
+            fail_get: false,
+            fail_put: false,
+            fail_list: false,
+        }),
+    )
+}
+
+fn store_with_blob_fault(
+    storage: &MemoryStorage,
+    fail_get: bool,
+    fail_put: bool,
+    fail_list: bool,
+) -> DocumentBundleStore {
+    let scoped = storage.for_scope(&Scope::new("alice").unwrap()).unwrap();
+    DocumentBundleStore::new(
+        Arc::clone(scoped.documents()),
+        Arc::new(GatedBlobs {
+            inner: Arc::clone(scoped.blobs()),
+            gate: Arc::new(ReadGate::default()),
+            fail_get,
+            fail_put,
+            fail_list,
         }),
     )
 }
@@ -236,15 +261,20 @@ async fn stale_and_missing_deletes_report_the_current_visible_revision() {
 }
 
 #[tokio::test]
-async fn reads_and_zero_limit_listing_preserve_document_backend_refusals() {
-    let storage = MemoryStorage::new();
-    let store = store(&storage, "alice");
+async fn blob_backend_refusals_do_not_publish_heads_or_look_like_absence() {
+    let storage = prepared().await;
+    let failing_writer = store_with_blob_fault(&storage, false, true, false);
     assert!(matches!(
-        store.read("missing").await,
+        failing_writer.publish("demo", None, &content("one")).await,
         Err(BundleStoreError::Backend(_))
     ));
+    assert_eq!(store(&storage, "alice").read("demo").await.unwrap(), None);
+
+    let writer = store(&storage, "alice");
+    writer.publish("demo", None, &content("one")).await.unwrap();
+    let failing_reader = store_with_blob_fault(&storage, false, false, true);
     assert!(matches!(
-        store.list(None, 0).await,
+        failing_reader.read("demo").await,
         Err(BundleStoreError::Backend(_))
     ));
 }
