@@ -46,7 +46,8 @@ impl BlobStore for GatedBlobs {
         if self.fail_get {
             return Err(StorageError::backend("injected blob read failure"));
         }
-        if key.starts_with("skills/bundle-generations/demo/") && self.gate.armed.swap(false, Ordering::SeqCst)
+        if key.starts_with("skills/bundle-generations/demo/")
+            && self.gate.armed.swap(false, Ordering::SeqCst)
         {
             self.gate.started.notify_one();
             self.gate.release.notified().await;
@@ -212,7 +213,10 @@ async fn workflow_primary_round_trips_and_corrupt_digest_is_refused() {
             .doc,
     )
     .unwrap();
-    let key = format!("{BUNDLE_GENERATION_PREFIX}/flow/{}/WORKFLOW.md", head.generation);
+    let key = format!(
+        "{BUNDLE_GENERATION_PREFIX}/flow/{}/WORKFLOW.md",
+        head.generation
+    );
     blobs.put(&key, b"tampered".to_vec(), None).await.unwrap();
     assert!(matches!(
         store.read("flow").await,
@@ -252,17 +256,27 @@ async fn list_rejects_malformed_digest_metadata() {
     let (documents, _) = parts(&storage);
     let store = DocumentBundleStore::new(Arc::clone(&documents), parts(&storage).1);
     store.publish("demo", None, &content("one")).await.unwrap();
-    let row = documents.get(BUNDLE_COLLECTION, "demo").await.unwrap().unwrap();
+    let row = documents
+        .get(BUNDLE_COLLECTION, "demo")
+        .await
+        .unwrap()
+        .unwrap();
     let mut doc = row.doc;
     doc["digest"] = serde_json::Value::String("not-a-sha256".to_owned());
-    documents.put_with(
-        BUNDLE_COLLECTION,
-        "demo",
-        doc,
-        Precondition::Version(row.version),
-        WriteOptions::new().schema(BUNDLE_SCHEMA),
-    ).await.unwrap();
-    assert!(matches!(store.list(None, 10).await, Err(BundleStoreError::Corrupt)));
+    documents
+        .put_with(
+            BUNDLE_COLLECTION,
+            "demo",
+            doc,
+            Precondition::Version(row.version),
+            WriteOptions::new().schema(BUNDLE_SCHEMA),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        store.list(None, 10).await,
+        Err(BundleStoreError::Corrupt)
+    ));
 }
 
 #[tokio::test]
@@ -328,13 +342,31 @@ async fn immutable_generations_survive_legacy_bundle_replacement_and_delete() {
     let store = store(&storage, "alice");
     let scoped = storage.for_scope(&Scope::new("alice").unwrap()).unwrap();
     let legacy = BlobBundles::new(Arc::clone(scoped.blobs()));
-    store.publish("demo", None, &content("committed")).await.unwrap();
+    store
+        .publish("demo", None, &content("committed"))
+        .await
+        .unwrap();
     legacy
-        .publish("demo", vec![tinyskills::MaterializeFile::new("SKILL.md", b"legacy".to_vec())])
+        .publish(
+            "demo",
+            vec![tinyskills::MaterializeFile::new(
+                "SKILL.md",
+                b"legacy".to_vec(),
+            )],
+        )
         .await
         .unwrap();
     assert!(legacy.delete("demo").await.unwrap());
-    assert_eq!(store.read("demo").await.unwrap().unwrap().content.file("SKILL.md"), Some(b"committed".as_slice()));
+    assert_eq!(
+        store
+            .read("demo")
+            .await
+            .unwrap()
+            .unwrap()
+            .content
+            .file("SKILL.md"),
+        Some(b"committed".as_slice())
+    );
 }
 
 #[tokio::test]
@@ -342,14 +374,23 @@ async fn custom_bundle_limits_round_trip_above_default_file_count() {
     let storage = prepared().await;
     let store = store(&storage, "alice");
     let resources = (0..4096)
-        .map(|index| BundleFile { path: format!("resources/{index:04}.bin"), bytes: Vec::new() })
+        .map(|index| BundleFile {
+            path: format!("resources/{index:04}.bin"),
+            bytes: Vec::new(),
+        })
         .collect();
     let large = UserBundle::new(
         BundleDocument::Skill,
         "primary".to_owned(),
         resources,
-        BundleLimits { max_files: 5000, max_file_bytes: 32, max_total_bytes: 64, max_path_bytes: 128 },
-    ).unwrap();
+        BundleLimits {
+            max_files: 5000,
+            max_file_bytes: 32,
+            max_total_bytes: 64,
+            max_path_bytes: 128,
+        },
+    )
+    .unwrap();
     store.publish("large", None, &large).await.unwrap();
     assert_eq!(store.read("large").await.unwrap().unwrap().content, large);
 }

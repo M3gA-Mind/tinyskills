@@ -1,7 +1,7 @@
 //! User bundles as immutable blob generations selected by CAS-protected heads.
 
-use std::sync::Arc;
 use sha2::{Digest, Sha256};
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use tinyskills::{
@@ -84,7 +84,10 @@ impl DocumentBundleStore {
     }
 
     async fn files(&self, id: &str, head: &Head) -> Result<UserBundle, BundleStoreError> {
-        if !valid_digest(&head.digest) || head.manifest.is_empty() || head.manifest.len() > MAX_FILES {
+        if !valid_digest(&head.digest)
+            || head.manifest.is_empty()
+            || head.manifest.len() > MAX_FILES
+        {
             return Err(BundleStoreError::Corrupt);
         }
         let prefix = format!("{BUNDLE_GENERATION_PREFIX}/{id}/{}/", head.generation);
@@ -95,18 +98,36 @@ impl DocumentBundleStore {
         }
         let mut expected_total = 0usize;
         for (meta, expected) in listed.iter().zip(&head.manifest) {
-            let path = meta.key.strip_prefix(&prefix).ok_or(BundleStoreError::Corrupt)?;
+            let path = meta
+                .key
+                .strip_prefix(&prefix)
+                .ok_or(BundleStoreError::Corrupt)?;
             let bytes = usize::try_from(expected.bytes).map_err(|_| BundleStoreError::Corrupt)?;
-            expected_total = expected_total.checked_add(bytes).ok_or(BundleStoreError::Corrupt)?;
-            if path != expected.path || expected.path.len() > MAX_PATH_BYTES || bytes > MAX_FILE_BYTES
-                || !valid_digest(&expected.digest) || expected_total > MAX_TOTAL_BYTES
+            expected_total = expected_total
+                .checked_add(bytes)
+                .ok_or(BundleStoreError::Corrupt)?;
+            if path != expected.path
+                || expected.path.len() > MAX_PATH_BYTES
+                || bytes > MAX_FILE_BYTES
+                || !valid_digest(&expected.digest)
+                || expected_total > MAX_TOTAL_BYTES
                 || meta.len != expected.bytes
             {
                 return Err(BundleStoreError::Corrupt);
             }
         }
-        let max_file_bytes = head.manifest.iter().map(|entry| entry.bytes as usize).max().unwrap_or(0);
-        let max_path_bytes = head.manifest.iter().map(|entry| entry.path.len()).max().unwrap_or(0);
+        let max_file_bytes = head
+            .manifest
+            .iter()
+            .map(|entry| entry.bytes as usize)
+            .max()
+            .unwrap_or(0);
+        let max_path_bytes = head
+            .manifest
+            .iter()
+            .map(|entry| entry.path.len())
+            .max()
+            .unwrap_or(0);
         let mut files = Vec::with_capacity(listed.len());
         for (meta, expected) in listed.into_iter().zip(&head.manifest) {
             let blob = self
@@ -145,13 +166,18 @@ impl DocumentBundleStore {
             .into_iter()
             .filter(|file| file.path != primary_file)
             .collect();
-        let content = UserBundle::new(primary, document, resources, BundleLimits {
-            max_files: head.manifest.len(),
-            max_file_bytes,
-            max_total_bytes: expected_total,
-            max_path_bytes,
-        })
-            .map_err(|_| BundleStoreError::Corrupt)?;
+        let content = UserBundle::new(
+            primary,
+            document,
+            resources,
+            BundleLimits {
+                max_files: head.manifest.len(),
+                max_file_bytes,
+                max_total_bytes: expected_total,
+                max_path_bytes,
+            },
+        )
+        .map_err(|_| BundleStoreError::Corrupt)?;
         if content.digest() != head.digest {
             return Err(BundleStoreError::Corrupt);
         }
@@ -164,6 +190,22 @@ impl DocumentBundleStore {
         revision: u64,
         content: &UserBundle,
     ) -> Result<String, BundleStoreError> {
+        let manifest = content.manifest();
+        let total = manifest
+            .iter()
+            .try_fold(0usize, |total, entry| {
+                let bytes = usize::try_from(entry.bytes).ok()?;
+                total.checked_add(bytes)
+            })
+            .ok_or(BundleStoreError::Corrupt)?;
+        if manifest.len() > MAX_FILES
+            || total > MAX_TOTAL_BYTES
+            || manifest.iter().any(|entry| {
+                entry.bytes > MAX_FILE_BYTES as u64 || entry.path.len() > MAX_PATH_BYTES
+            })
+        {
+            return Err(BundleStoreError::Corrupt);
+        }
         let generation = format!("{revision}-{}", content.digest());
         let prefix = format!("{BUNDLE_GENERATION_PREFIX}/{id}/{generation}");
         for file in content.files() {
@@ -256,9 +298,15 @@ impl BundleStore for DocumentBundleStore {
                 primary: primary_name(content.primary()).into(),
                 digest: content.digest(),
                 generation,
-                manifest: content.manifest().into_iter().map(|entry| ManifestEntry {
-                    path: entry.path, bytes: entry.bytes, digest: entry.digest,
-                }).collect(),
+                manifest: content
+                    .manifest()
+                    .into_iter()
+                    .map(|entry| ManifestEntry {
+                        path: entry.path,
+                        bytes: entry.bytes,
+                        digest: entry.digest,
+                    })
+                    .collect(),
             };
             let precondition = current
                 .as_ref()
@@ -330,7 +378,11 @@ impl BundleStore for DocumentBundleStore {
                         } else {
                             return Err(BundleStoreError::Corrupt);
                         },
-                        digest: if valid_digest(&head.digest) { head.digest } else { return Err(BundleStoreError::Corrupt); },
+                        digest: if valid_digest(&head.digest) {
+                            head.digest
+                        } else {
+                            return Err(BundleStoreError::Corrupt);
+                        },
                     });
                     if output.len() >= limit {
                         return Ok(output);
