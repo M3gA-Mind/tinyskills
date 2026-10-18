@@ -8,14 +8,14 @@ use tinyskills::{
     BundleStoreError, BundleSummary, StoredBundle, UserBundle, is_safe_segment,
 };
 use tinystoragedrivers_core::{
-    BlobStore, DocumentStore, ErrorKind, Key, Precondition, Query, StorageError, Version,
+    BlobStore, DocumentStore, ErrorKind, Key, MAX_ID_LEN, Precondition, Query, StorageError, Version,
     WriteOptions,
 };
 
 use crate::BUNDLE_PREFIX;
 
 /// The collection holding current user-bundle heads.
-pub const BUNDLE_COLLECTION: &str = "skills.bundle_heads";
+pub const BUNDLE_COLLECTION: &str = "skills.bundles";
 pub(crate) const BUNDLE_SCHEMA: u32 = 1;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -49,10 +49,10 @@ impl DocumentBundleStore {
     }
 
     fn id(id: &str) -> Result<String, BundleStoreError> {
-        if !is_safe_segment(id) {
+        if !is_safe_segment(id) || id.len() > MAX_ID_LEN {
             return Err(BundleStoreError::InvalidId);
         }
-        Key::of([id])
+        Key::new(id.to_owned())
             .map(|key| key.as_str().to_owned())
             .map_err(|_| BundleStoreError::InvalidId)
     }
@@ -331,4 +331,5 @@ impl BundleStore for DocumentBundleStore {
 
 #[cfg(test)]
 #[path = "bundle_store_tests.rs"]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests;

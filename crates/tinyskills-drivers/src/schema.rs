@@ -5,7 +5,7 @@
 //! |---|---|---|
 //! | collection `tinyskills_catalogs` | collection `skills.catalogs` (schema 2) | tenant |
 //! | blobs `<host prefix>/<bundle id>/…` | blobs `skills/bundles/<bundle id>/…` | tenant |
-//! | — | collection `skills.bundle_heads` (schema 1) | tenant |
+//! | — | collection `skills.bundles` (schema 1) | tenant |
 //!
 //! The host composes [`storage_schema`] into its `Registry`, which declares
 //! the items, derives the module grant and runs the steps.
@@ -30,7 +30,7 @@ pub(crate) const CATALOG_SCHEMA: u32 = 2;
 
 /// Everything `tinyskills-drivers` stores, as the owner `skills`:
 /// the catalog collection `skills.catalogs`, the bundle head collection
-/// `skills.bundle_heads`, and the immutable bundle blob prefix
+/// `skills.bundles`, and the immutable bundle blob prefix
 /// `skills/bundles`, all tenant scoped, plus the step that moves
 /// `tinyskills_catalogs` into `skills.catalogs`.
 ///
