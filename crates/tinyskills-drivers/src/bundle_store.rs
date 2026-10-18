@@ -88,7 +88,8 @@ impl DocumentBundleStore {
             return Err(BundleStoreError::Corrupt);
         }
         let prefix = format!("{BUNDLE_GENERATION_PREFIX}/{id}/{}/", head.generation);
-        let listed = self.blobs.list(&prefix).await.map_err(backend)?;
+        let mut listed = self.blobs.list(&prefix).await.map_err(backend)?;
+        listed.sort_by(|a, b| a.key.cmp(&b.key));
         if listed.len() != head.manifest.len() {
             return Err(BundleStoreError::Corrupt);
         }
@@ -99,6 +100,7 @@ impl DocumentBundleStore {
             expected_total = expected_total.checked_add(bytes).ok_or(BundleStoreError::Corrupt)?;
             if path != expected.path || expected.path.len() > MAX_PATH_BYTES || bytes > MAX_FILE_BYTES
                 || !valid_digest(&expected.digest) || expected_total > MAX_TOTAL_BYTES
+                || meta.len != expected.bytes
             {
                 return Err(BundleStoreError::Corrupt);
             }
