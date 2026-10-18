@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json;
 use tinystoragedrivers_core::{BlobStore, DocumentStore, ErrorKind, Key, Precondition, Query, StorageError, Version, WriteOptions};
 use tinyskills::{BundleDocument, BundleFuture, BundleRevision, BundleStore, BundleStoreError, BundleSummary, StoredBundle, UserBundle, BundleFile, BundleLimits, is_safe_segment};
 
@@ -11,7 +11,7 @@ use crate::BUNDLE_PREFIX;
 
 /// The collection holding current user-bundle heads.
 pub const BUNDLE_COLLECTION: &str = "skills.bundle_heads";
-const BUNDLE_SCHEMA: u32 = 1;
+pub(crate) const BUNDLE_SCHEMA: u32 = 1;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Head {
@@ -142,3 +142,7 @@ impl BundleStore for DocumentBundleStore {
         Ok(BundleRevision(revision))
     }) }
 }
+
+#[cfg(test)]
+#[path = "bundle_store_tests.rs"]
+mod tests;

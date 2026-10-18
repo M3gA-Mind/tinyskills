@@ -5,6 +5,7 @@
 //! |---|---|---|
 //! | collection `tinyskills_catalogs` | collection `skills.catalogs` (schema 2) | tenant |
 //! | blobs `<host prefix>/<bundle id>/…` | blobs `skills/bundles/<bundle id>/…` | tenant |
+//! | — | collection `skills.bundle_heads` (schema 1) | tenant |
 //!
 //! The host composes [`storage_schema`] into its `Registry`, which declares
 //! the items, derives the module grant and runs the steps.
@@ -12,7 +13,7 @@
 use tinyskills::StoredCatalog;
 use tinystoragedrivers_core::{Key, Owner, Schema, ScopeClass, SourceRecord, Step, TargetRecord};
 
-use crate::blob_bundles::BUNDLE_PREFIX;
+use crate::{blob_bundles::BUNDLE_PREFIX, bundle_store::{BUNDLE_COLLECTION, BUNDLE_SCHEMA}};
 use crate::document_store::CatalogBody;
 
 /// The collection that holds one document per registry catalog.
@@ -39,6 +40,7 @@ pub fn storage_schema() -> Schema {
     let owner = Owner::new("skills").expect("`skills` is a valid owner name");
     Schema::new(owner)
         .collection(CATALOG_COLLECTION, CATALOG_SCHEMA, ScopeClass::Tenant)
+        .collection(BUNDLE_COLLECTION, BUNDLE_SCHEMA, ScopeClass::Tenant)
         .blobs(BUNDLE_PREFIX, ScopeClass::Tenant)
         .step(catalogs_step())
 }
