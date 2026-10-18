@@ -13,8 +13,11 @@
 use tinyskills::StoredCatalog;
 use tinystoragedrivers_core::{Key, Owner, Schema, ScopeClass, SourceRecord, Step, TargetRecord};
 
-use crate::{blob_bundles::BUNDLE_PREFIX, bundle_store::{BUNDLE_COLLECTION, BUNDLE_SCHEMA}};
 use crate::document_store::CatalogBody;
+use crate::{
+    blob_bundles::BUNDLE_PREFIX,
+    bundle_store::{BUNDLE_COLLECTION, BUNDLE_SCHEMA},
+};
 
 /// The collection that holds one document per registry catalog.
 pub const CATALOG_COLLECTION: &str = "skills.catalogs";
