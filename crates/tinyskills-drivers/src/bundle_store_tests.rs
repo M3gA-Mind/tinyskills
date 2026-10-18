@@ -1,4 +1,5 @@
 use super::*;
+use crate::BlobBundles;
 use async_trait::async_trait;
 use std::{
     ops::Range,
