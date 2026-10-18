@@ -194,7 +194,7 @@ async fn listing_pages_in_identifier_order_and_skips_tombstones() {
     store.publish("c", None, &content("c")).await.unwrap();
     store.delete("b", b).await.unwrap();
 
-    assert!(store.list(None, 0).await.unwrap().is_empty());
+    assert_eq!(store.list(None, 0).await.unwrap(), Vec::new());
     let first = store.list(None, 1).await.unwrap();
     assert_eq!(
         first.iter().map(|row| row.id.as_str()).collect::<Vec<_>>(),
