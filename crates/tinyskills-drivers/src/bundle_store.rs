@@ -221,15 +221,19 @@ impl DocumentBundleStore {
             .await
             .map_err(backend)?;
         existing.sort_by(|a, b| a.key.cmp(&b.key));
-        if existing.iter().any(|meta| !expected_keys.contains(&meta.key)) {
+        if existing
+            .iter()
+            .any(|meta| !expected_keys.contains(&meta.key))
+        {
             return Err(BundleStoreError::Corrupt);
         }
         for file in content.files() {
             let key = format!("{prefix}/{}", file.path);
-            if let Some(meta) = existing.iter().find(|meta| meta.key == key) {
-                if meta.len != file.bytes.len() as u64 {
-                    return Err(BundleStoreError::Corrupt);
-                }
+            if let Some(meta) = existing.iter().find(|meta| meta.key == key)
+                && meta.len
+                    != u64::try_from(file.bytes.len()).map_err(|_| BundleStoreError::Corrupt)?
+            {
+                return Err(BundleStoreError::Corrupt);
             }
             match self.blobs.get(&key).await.map_err(backend)? {
                 Some(existing) if existing.bytes == file.bytes => {}

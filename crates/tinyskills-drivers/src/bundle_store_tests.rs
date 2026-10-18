@@ -252,6 +252,61 @@ async fn malformed_heads_and_unknown_primary_documents_are_corrupt() {
 }
 
 #[tokio::test]
+async fn reads_and_lists_refuse_heads_from_unknown_document_schemas() {
+    let storage = prepared().await;
+    let (documents, blobs) = parts(&storage);
+    let store = DocumentBundleStore::new(Arc::clone(&documents), blobs);
+    store.publish("demo", None, &content("one")).await.unwrap();
+    let row = documents
+        .get(BUNDLE_COLLECTION, "demo")
+        .await
+        .unwrap()
+        .unwrap();
+    documents
+        .put_with(
+            BUNDLE_COLLECTION,
+            "demo",
+            row.doc,
+            Precondition::Version(row.version),
+            WriteOptions::new().schema(BUNDLE_SCHEMA + 1),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        store.read("demo").await,
+        Err(BundleStoreError::Corrupt)
+    ));
+    assert!(matches!(
+        store.list(None, 10).await,
+        Err(BundleStoreError::Corrupt)
+    ));
+}
+
+#[tokio::test]
+async fn list_rejects_ids_that_cannot_be_used_as_bundle_selectors() {
+    let storage = prepared().await;
+    let (documents, blobs) = parts(&storage);
+    let store = DocumentBundleStore::new(Arc::clone(&documents), blobs);
+    put_head(
+        &*documents,
+        "composite/id",
+        serde_json::json!({
+            "revision": 1,
+            "tombstone": false,
+            "primary": "skill",
+            "digest": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "generation": "1-test",
+            "manifest": []
+        }),
+    )
+    .await;
+    assert!(matches!(
+        store.list(None, 1).await,
+        Err(BundleStoreError::Corrupt)
+    ));
+}
+
+#[tokio::test]
 async fn list_rejects_malformed_digest_metadata() {
     let storage = prepared().await;
     let (documents, _) = parts(&storage);
@@ -365,6 +420,29 @@ async fn content_generations_are_reused_only_for_identical_bytes() {
         store.write_content("demo", 7, &content).await,
         Err(BundleStoreError::Corrupt)
     ));
+}
+
+#[tokio::test]
+async fn publication_refuses_unexpected_blobs_in_its_generation_prefix() {
+    let storage = prepared().await;
+    let store = store(&storage, "alice");
+    let content = content("known");
+    let generation = format!("1-{}", content.digest());
+    let scoped = storage.for_scope(&Scope::new("alice").unwrap()).unwrap();
+    scoped
+        .blobs()
+        .put(
+            &format!("{BUNDLE_GENERATION_PREFIX}/demo/{generation}/rogue.bin"),
+            b"unexpected".to_vec(),
+            None,
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        store.publish("demo", None, &content).await,
+        Err(BundleStoreError::Corrupt)
+    ));
+    assert_eq!(store.read("demo").await.unwrap(), None);
 }
 
 #[tokio::test]
