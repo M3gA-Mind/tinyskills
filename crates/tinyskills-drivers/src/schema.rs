@@ -29,8 +29,9 @@ pub(crate) const CATALOG_V1_COLLECTION: &str = "tinyskills_catalogs";
 pub(crate) const CATALOG_SCHEMA: u32 = 2;
 
 /// Everything `tinyskills-drivers` stores, as the owner `skills`:
-/// the catalog collection `skills.catalogs` and the bundle blob prefix
-/// `skills/bundles`, both tenant scoped, plus the step that moves
+/// the catalog collection `skills.catalogs`, the bundle head collection
+/// `skills.bundle_heads`, and the immutable bundle blob prefix
+/// `skills/bundles`, all tenant scoped, plus the step that moves
 /// `tinyskills_catalogs` into `skills.catalogs`.
 ///
 /// # Panics
