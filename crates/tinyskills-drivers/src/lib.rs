@@ -10,10 +10,11 @@
 //! - [`BlobBundles`]: skill bundle files as a blob tree, materialized to a
 //!   cache directory for discovery with [`BlobBundles::materialize`].
 //! - [`DocumentBundleStore`]: CAS-protected user-bundle heads referencing
-//!   immutable generations in the bundle blob tree.
-//! - [`storage_schema`]: the owner `skills` declaration of both (the catalog
-//!   and bundle-head collections, bundle blob prefix, and catalog migration
-//!   steps, for the host's `Registry::compose`.
+//!   immutable generations under [`BUNDLE_GENERATION_PREFIX`], separate from
+//!   the deletable [`BUNDLE_PREFIX`] tree.
+//! - [`storage_schema`]: the owner `skills` declaration of the catalog and
+//!   bundle-head collections, both blob prefixes, and catalog migration steps,
+//!   for the host's `Registry::compose`.
 
 mod blob_bundles;
 mod bundle_store;

@@ -247,6 +247,25 @@ async fn malformed_heads_and_unknown_primary_documents_are_corrupt() {
 }
 
 #[tokio::test]
+async fn list_rejects_malformed_digest_metadata() {
+    let storage = prepared().await;
+    let (documents, _) = parts(&storage);
+    let store = DocumentBundleStore::new(Arc::clone(&documents), parts(&storage).1);
+    store.publish("demo", None, &content("one")).await.unwrap();
+    let row = documents.get(BUNDLE_COLLECTION, "demo").await.unwrap().unwrap();
+    let mut doc = row.doc;
+    doc["digest"] = serde_json::Value::String("not-a-sha256".to_owned());
+    documents.put_with(
+        BUNDLE_COLLECTION,
+        "demo",
+        doc,
+        Precondition::Version(row.version),
+        WriteOptions::new().schema(BUNDLE_SCHEMA),
+    ).await.unwrap();
+    assert!(matches!(store.list(None, 10).await, Err(BundleStoreError::Corrupt)));
+}
+
+#[tokio::test]
 async fn stale_and_missing_deletes_report_the_current_visible_revision() {
     let storage = prepared().await;
     let store = store(&storage, "alice");
@@ -301,6 +320,38 @@ async fn content_generations_are_reused_only_for_identical_bytes() {
         store.write_content("demo", 7, &content).await,
         Err(BundleStoreError::Corrupt)
     ));
+}
+
+#[tokio::test]
+async fn immutable_generations_survive_legacy_bundle_replacement_and_delete() {
+    let storage = prepared().await;
+    let store = store(&storage, "alice");
+    let scoped = storage.for_scope(&Scope::new("alice").unwrap()).unwrap();
+    let legacy = BlobBundles::new(Arc::clone(scoped.blobs()));
+    store.publish("demo", None, &content("committed")).await.unwrap();
+    legacy
+        .publish("demo", vec![tinyskills::MaterializeFile::new("SKILL.md", b"legacy".to_vec())])
+        .await
+        .unwrap();
+    assert!(legacy.delete("demo").await.unwrap());
+    assert_eq!(store.read("demo").await.unwrap().unwrap().content.file("SKILL.md"), Some(b"committed".as_slice()));
+}
+
+#[tokio::test]
+async fn custom_bundle_limits_round_trip_above_default_file_count() {
+    let storage = prepared().await;
+    let store = store(&storage, "alice");
+    let resources = (0..4096)
+        .map(|index| BundleFile { path: format!("resources/{index:04}.bin"), bytes: Vec::new() })
+        .collect();
+    let large = UserBundle::new(
+        BundleDocument::Skill,
+        "primary".to_owned(),
+        resources,
+        BundleLimits { max_files: 5000, max_file_bytes: 32, max_total_bytes: 64, max_path_bytes: 128 },
+    ).unwrap();
+    store.publish("large", None, &large).await.unwrap();
+    assert_eq!(store.read("large").await.unwrap().unwrap().content, large);
 }
 
 #[tokio::test]
