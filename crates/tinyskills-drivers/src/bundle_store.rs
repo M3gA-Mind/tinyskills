@@ -144,13 +144,6 @@ impl DocumentBundleStore {
 fn backend(error: StorageError) -> BundleStoreError {
     BundleStoreError::Backend(Box::new(error))
 }
-fn conflict(error: StorageError, current: Option<BundleRevision>) -> BundleStoreError {
-    if error.kind() == ErrorKind::Conflict || error.kind() == ErrorKind::AlreadyExists {
-        BundleStoreError::Conflict { current }
-    } else {
-        backend(error)
-    }
-}
 fn primary_name(primary: BundleDocument) -> &'static str {
     match primary {
         BundleDocument::Skill => "skill",
@@ -254,6 +247,9 @@ impl BundleStore for DocumentBundleStore {
                     .query(BUNDLE_COLLECTION, &query)
                     .await
                     .map_err(backend)?;
+                if limit == 0 {
+                    return Ok(output);
+                }
                 for row in page.items {
                     if after.is_some_and(|cursor| row.id.as_str() <= cursor) {
                         continue;

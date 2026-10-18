@@ -45,7 +45,7 @@ async fn compare_and_swap_conflict_preserves_the_winning_head() {
     );
     assert_eq!(usize::from(left.is_ok()) + usize::from(right.is_ok()), 1);
     assert!(
-        matches!(left.as_ref().err().or(right.as_ref().err()), Some(BundleStoreError::Conflict { current: Some(rev) }) if *rev == first)
+        matches!(left.as_ref().err().or(right.as_ref().err()), Some(BundleStoreError::Conflict { current: Some(rev) }) if *rev == BundleRevision(2))
     );
     let actual = a.read("demo").await.unwrap().unwrap();
     assert_eq!(actual.revision, BundleRevision(2));
