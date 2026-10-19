@@ -5,6 +5,8 @@
 //! |---|---|---|
 //! | collection `tinyskills_catalogs` | collection `skills.catalogs` (schema 2) | tenant |
 //! | blobs `<host prefix>/<bundle id>/…` | blobs `skills/bundles/<bundle id>/…` | tenant |
+//! | — | blobs `skills/bundle-generations/<bundle id>/<generation>/…` | tenant |
+//! | — | collection `skills.bundles` (schema 1) | tenant |
 //!
 //! The host composes [`storage_schema`] into its `Registry`, which declares
 //! the items, derives the module grant and runs the steps.
@@ -12,8 +14,11 @@
 use tinyskills::StoredCatalog;
 use tinystoragedrivers_core::{Key, Owner, Schema, ScopeClass, SourceRecord, Step, TargetRecord};
 
-use crate::blob_bundles::BUNDLE_PREFIX;
 use crate::document_store::CatalogBody;
+use crate::{
+    blob_bundles::{BUNDLE_GENERATION_PREFIX, BUNDLE_PREFIX},
+    bundle_store::{BUNDLE_COLLECTION, BUNDLE_SCHEMA},
+};
 
 /// The collection that holds one document per registry catalog.
 pub const CATALOG_COLLECTION: &str = "skills.catalogs";
@@ -25,8 +30,10 @@ pub(crate) const CATALOG_V1_COLLECTION: &str = "tinyskills_catalogs";
 pub(crate) const CATALOG_SCHEMA: u32 = 2;
 
 /// Everything `tinyskills-drivers` stores, as the owner `skills`:
-/// the catalog collection `skills.catalogs` and the bundle blob prefix
-/// `skills/bundles`, both tenant scoped, plus the step that moves
+/// the catalog collection `skills.catalogs`, the bundle head collection
+/// `skills.bundles`, the user-facing bundle blob prefix `skills/bundles`, and
+/// the disjoint immutable generation prefix `skills/bundle-generations`, all
+/// tenant scoped, plus the step that moves
 /// `tinyskills_catalogs` into `skills.catalogs`.
 ///
 /// # Panics
@@ -39,7 +46,9 @@ pub fn storage_schema() -> Schema {
     let owner = Owner::new("skills").expect("`skills` is a valid owner name");
     Schema::new(owner)
         .collection(CATALOG_COLLECTION, CATALOG_SCHEMA, ScopeClass::Tenant)
+        .collection(BUNDLE_COLLECTION, BUNDLE_SCHEMA, ScopeClass::Tenant)
         .blobs(BUNDLE_PREFIX, ScopeClass::Tenant)
+        .blobs(BUNDLE_GENERATION_PREFIX, ScopeClass::Tenant)
         .step(catalogs_step())
 }
 

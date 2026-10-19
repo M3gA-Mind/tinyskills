@@ -9,14 +9,19 @@
 //!   [`SkillRegistry`](tinyskills::SkillRegistry).
 //! - [`BlobBundles`]: skill bundle files as a blob tree, materialized to a
 //!   cache directory for discovery with [`BlobBundles::materialize`].
-//! - [`storage_schema`]: the owner `skills` declaration of both (the catalog
-//!   collection, the bundle blob prefix) and the v1 to v2 migration steps, for
-//!   the host's `Registry::compose`.
+//! - [`DocumentBundleStore`]: CAS-protected user-bundle heads referencing
+//!   immutable generations under [`BUNDLE_GENERATION_PREFIX`], separate from
+//!   the deletable [`BUNDLE_PREFIX`] tree.
+//! - [`storage_schema`]: the owner `skills` declaration of the catalog and
+//!   bundle-head collections, both blob prefixes, and catalog migration steps,
+//!   for the host's `Registry::compose`.
 
 mod blob_bundles;
+mod bundle_store;
 mod document_store;
 mod schema;
 
-pub use blob_bundles::{BUNDLE_PREFIX, BlobBundleError, BlobBundles};
+pub use blob_bundles::{BUNDLE_GENERATION_PREFIX, BUNDLE_PREFIX, BlobBundleError, BlobBundles};
+pub use bundle_store::{BUNDLE_COLLECTION, DocumentBundleStore};
 pub use document_store::DocumentCatalogStore;
 pub use schema::{CATALOG_COLLECTION, storage_schema};
