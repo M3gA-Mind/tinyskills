@@ -11,7 +11,8 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use cap_std::fs::Dir;
-use tinystoragedrivers_core::{BlobStore, StorageError, TreeEntry, TreeFile};
+use tinystoragedrivers_api::BlobStore;
+use tinystoragedrivers_types::{StorageError, TreeEntry, TreeFile};
 
 use tinyskills::{
     MAX_MATERIALIZE_DEPTH, MAX_MATERIALIZE_FILE_BYTES, MaterializeEntry, MaterializeError,

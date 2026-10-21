@@ -3,9 +3,8 @@
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tinystoragedrivers_core::{
-    DocumentStore, ErrorKind, Key, Precondition, StorageError, WriteOptions,
-};
+use tinystoragedrivers_api::DocumentStore;
+use tinystoragedrivers_types::{ErrorKind, Key, Precondition, StorageError, WriteOptions};
 
 use tinyskills::{
     BoxFuture, CatalogStore, RegistryEntry, StoreError, StoredCatalog, Validators, is_safe_segment,

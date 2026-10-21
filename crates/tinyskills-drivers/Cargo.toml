@@ -6,14 +6,14 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-# Not published: it depends on `tinystoragedrivers-core` by git tag, which a
-# crates.io package cannot do. The published `tinyskills` crate stays free of
-# any storage dependency.
+# Not published: the published `tinyskills` crate stays free of any storage
+# dependency; this adapter consumes only host-supplied storage ports.
 publish = false
 
 [dependencies]
 tinyskills = { path = "../tinyskills", features = ["registry"] }
-tinystoragedrivers-core.workspace = true
+tinystoragedrivers-api.workspace = true
+tinystoragedrivers-types.workspace = true
 cap-std.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -25,6 +25,7 @@ tokio = { workspace = true, features = ["sync"] }
 async-trait.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "sync"] }
+tinystoragedrivers-testkit.workspace = true
 
 [lints]
 workspace = true
