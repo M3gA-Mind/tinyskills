@@ -10,6 +10,7 @@ use tinystoragedrivers_types::{ErrorKind, Precondition, Query, StorageError, Wri
 use crate::blob_bundles::BlobBundles;
 use crate::bundle_store::DocumentBundleStore;
 use crate::document_store::{CatalogBody, DocumentCatalogStore};
+use crate::run_log::StreamRunLogStore;
 use crate::schema::{
     CATALOG_COLLECTION, CATALOG_SCHEMA, CATALOG_V1_COLLECTION, MIGRATIONS_COLLECTION, collections,
 };
@@ -37,6 +38,7 @@ pub struct SkillsStorage {
     catalogs: DocumentCatalogStore,
     bundles: DocumentBundleStore,
     bundle_tree: BlobBundles,
+    run_logs: StreamRunLogStore,
 }
 
 impl SkillsStorage {
@@ -61,6 +63,7 @@ impl SkillsStorage {
                 Arc::clone(storage.blobs()),
             ),
             bundle_tree: BlobBundles::new(Arc::clone(storage.blobs())),
+            run_logs: StreamRunLogStore::new(Arc::clone(storage.streams())),
         })
     }
 
@@ -80,6 +83,12 @@ impl SkillsStorage {
     #[must_use]
     pub fn bundle_tree(&self) -> &BlobBundles {
         &self.bundle_tree
+    }
+
+    /// Access the append-only run-log store bound to this host scope.
+    #[must_use]
+    pub fn run_logs(&self) -> &StreamRunLogStore {
+        &self.run_logs
     }
 }
 

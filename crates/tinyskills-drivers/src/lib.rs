@@ -20,12 +20,14 @@
 mod blob_bundles;
 mod bundle_store;
 mod document_store;
+mod run_log;
 mod schema;
 mod storage;
 
 pub use blob_bundles::{BUNDLE_GENERATION_PREFIX, BUNDLE_PREFIX, BlobBundleError, BlobBundles};
 pub use bundle_store::{BUNDLE_COLLECTION, DocumentBundleStore};
 pub use document_store::DocumentCatalogStore;
+pub use run_log::{RunLogStoreError, StreamRunLogStore};
 pub use schema::{CATALOG_COLLECTION, MIGRATIONS_COLLECTION, blob_prefixes, collections};
 pub use storage::{SkillsStorage, SkillsStorageError};
 
