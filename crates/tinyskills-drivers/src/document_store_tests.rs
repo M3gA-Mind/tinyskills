@@ -1,11 +1,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use serde_json::json;
-use tinystoragedrivers_core::{
-    MemoryStorage, Precondition, Registry, Scope, StorageBackend, WriteOptions,
-};
+use tinystoragedrivers_api::{DocumentStore, StorageBackend};
+use tinystoragedrivers_testkit::{memory_backend, memory_storage};
+use tinystoragedrivers_types::{ErrorKind, Precondition, Scope, StorageError, WriteOptions};
 
 use super::*;
+use crate::SkillsStorage;
 use tinyskills::{RegistryEntry, Validators};
 
 fn catalog() -> StoredCatalog {
@@ -17,27 +18,10 @@ fn catalog() -> StoredCatalog {
     StoredCatalog::new(vec![entry], 42, validators, 3)
 }
 
-async fn prepared() -> MemoryStorage {
-    let storage = MemoryStorage::new();
-    Registry::compose([crate::storage_schema()])
-        .unwrap()
-        .prepare(&storage)
-        .await
-        .unwrap();
-    storage
-}
-
-fn handle(storage: &MemoryStorage, scope: &str) -> Arc<dyn DocumentStore> {
-    Arc::clone(
-        storage
-            .for_scope(&Scope::new(scope).unwrap())
-            .unwrap()
-            .documents(),
-    )
-}
-
 async fn docs(scope: &str) -> Arc<dyn DocumentStore> {
-    handle(&prepared().await, scope)
+    let storage = memory_storage(&Scope::new(scope).unwrap());
+    SkillsStorage::open(storage.clone()).await.unwrap();
+    Arc::clone(storage.documents())
 }
 
 #[tokio::test]
@@ -125,9 +109,13 @@ async fn other_schemas_read_as_absent_and_bad_documents_as_corrupt() {
 
 #[tokio::test]
 async fn scopes_are_isolated() {
-    let storage = prepared().await;
-    let alice = DocumentCatalogStore::new(handle(&storage, "alice"));
-    let bob = DocumentCatalogStore::new(handle(&storage, "bob"));
+    let backend = memory_backend();
+    let alice_storage = backend.for_scope(&Scope::new("alice").unwrap()).unwrap();
+    let bob_storage = backend.for_scope(&Scope::new("bob").unwrap()).unwrap();
+    SkillsStorage::open(alice_storage.clone()).await.unwrap();
+    SkillsStorage::open(bob_storage.clone()).await.unwrap();
+    let alice = DocumentCatalogStore::new(Arc::clone(alice_storage.documents()));
+    let bob = DocumentCatalogStore::new(Arc::clone(bob_storage.documents()));
     alice.save("r", &catalog()).await.unwrap();
     assert_eq!(bob.load("r").await.unwrap(), None);
 }

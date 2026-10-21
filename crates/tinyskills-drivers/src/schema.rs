@@ -1,86 +1,42 @@
-//! The `skills` owner's storage schema: what `tinyskills-drivers` keeps in the
-//! host's storage, and how the v1 shapes become the v2 ones.
-//!
-//! | v1 | v2 | scope |
-//! |---|---|---|
-//! | collection `tinyskills_catalogs` | collection `skills.catalogs` (schema 2) | tenant |
-//! | blobs `<host prefix>/<bundle id>/…` | blobs `skills/bundles/<bundle id>/…` | tenant |
-//! | — | blobs `skills/bundle-generations/<bundle id>/<generation>/…` | tenant |
-//! | — | collection `skills.bundles` (schema 1) | tenant |
-//!
-//! The host composes [`storage_schema`] into its `Registry`, which declares
-//! the items, derives the module grant and runs the steps.
+//! Pure collection declarations for the `skills` storage owner.
 
-use tinyskills::StoredCatalog;
-use tinystoragedrivers_core::{Key, Owner, Schema, ScopeClass, SourceRecord, Step, TargetRecord};
+use tinystoragedrivers_types::CollectionSpec;
 
-use crate::document_store::CatalogBody;
-use crate::{
-    blob_bundles::{BUNDLE_GENERATION_PREFIX, BUNDLE_PREFIX},
-    bundle_store::{BUNDLE_COLLECTION, BUNDLE_SCHEMA},
-};
+use crate::blob_bundles::{BUNDLE_GENERATION_PREFIX, BUNDLE_PREFIX};
+use crate::bundle_store::BUNDLE_COLLECTION;
 
 /// The collection that holds one document per registry catalog.
 pub const CATALOG_COLLECTION: &str = "skills.catalogs";
 
-/// The v1 name of [`CATALOG_COLLECTION`].
+/// The legacy collection read during the owner migration.
 pub(crate) const CATALOG_V1_COLLECTION: &str = "tinyskills_catalogs";
 
-/// The body version of [`CATALOG_COLLECTION`]; version 1 is the legacy shape.
+/// Per-owner receipts for completed skills migrations; this is not a central
+/// registry and never suppresses the legacy-row scan on a later open.
+pub(crate) const MIGRATIONS_COLLECTION: &str = "skills.migrations";
+
+/// The body version of [`CATALOG_COLLECTION`].
 pub(crate) const CATALOG_SCHEMA: u32 = 2;
 
-/// Everything `tinyskills-drivers` stores, as the owner `skills`:
-/// the catalog collection `skills.catalogs`, the bundle head collection
-/// `skills.bundles`, the user-facing bundle blob prefix `skills/bundles`, and
-/// the disjoint immutable generation prefix `skills/bundle-generations`, all
-/// tenant scoped, plus the step that moves
-/// `tinyskills_catalogs` into `skills.catalogs`.
+/// Declarations the host must ensure for the skills owner.
 ///
-/// # Panics
-///
-/// Never in practice: the owner name is a constant that passes
-/// `Owner::new`.
+/// This is a pure description: it performs no storage I/O and chooses no
+/// backend or scope. The host should ensure these collections on its bound
+/// document handle before calling [`crate::SkillsStorage::open`].
 #[must_use]
-pub fn storage_schema() -> Schema {
-    #[allow(clippy::expect_used)]
-    let owner = Owner::new("skills").expect("`skills` is a valid owner name");
-    Schema::new(owner)
-        .collection(CATALOG_COLLECTION, CATALOG_SCHEMA, ScopeClass::Tenant)
-        .collection(BUNDLE_COLLECTION, BUNDLE_SCHEMA, ScopeClass::Tenant)
-        .blobs(BUNDLE_PREFIX, ScopeClass::Tenant)
-        .blobs(BUNDLE_GENERATION_PREFIX, ScopeClass::Tenant)
-        .step(catalogs_step())
+pub fn collections() -> Vec<CollectionSpec> {
+    vec![
+        CollectionSpec::new(CATALOG_COLLECTION),
+        CollectionSpec::new(BUNDLE_COLLECTION),
+        CollectionSpec::new(MIGRATIONS_COLLECTION),
+    ]
 }
 
-fn catalogs_step() -> Step {
-    Step::new(
-        "catalogs_v2",
-        CATALOG_COLLECTION,
-        1,
-        CATALOG_SCHEMA,
-        |batch| Ok(batch.into_iter().filter_map(catalog_v2).collect()),
-    )
-    .source(CATALOG_V1_COLLECTION)
+/// Blob namespaces used by the skills owner.
+///
+/// Blob stores do not have a collection declaration operation; these prefixes
+/// are listed for hosts that need to report their complete storage layout.
+#[must_use]
+pub fn blob_prefixes() -> [&'static str; 2] {
+    [BUNDLE_PREFIX, BUNDLE_GENERATION_PREFIX]
 }
-
-/// One v1 catalog row as its v2 record. A row that is not a catalog this
-/// version can read (another `format`, or a body that does not decode) is
-/// dropped: it already read as absent or corrupt, and a catalog is a cache the
-/// registry fetches again.
-fn catalog_v2(record: SourceRecord) -> Option<TargetRecord> {
-    let stored: StoredCatalog = serde_json::from_value(record.body).ok()?;
-    if stored.format != StoredCatalog::FORMAT {
-        return None;
-    }
-    let body = serde_json::to_value(CatalogBody::from_stored(&stored)).ok()?;
-    let id = Key::of([record.id]).ok()?;
-    Some(
-        TargetRecord::new(CATALOG_COLLECTION, id.as_str(), body)
-            .created_ms(record.meta.created_ms)
-            .expires_ms(record.meta.expires_ms),
-    )
-}
-
-#[cfg(test)]
-#[path = "schema_tests.rs"]
-mod tests;
