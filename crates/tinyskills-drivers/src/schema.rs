@@ -11,9 +11,6 @@ pub const CATALOG_COLLECTION: &str = "skills.catalogs";
 /// The legacy collection read during the owner migration.
 pub(crate) const CATALOG_V1_COLLECTION: &str = "tinyskills_catalogs";
 
-/// The per-owner migration state collection.
-pub const MIGRATIONS_COLLECTION: &str = "skills.migrations";
-
 /// The body version of [`CATALOG_COLLECTION`].
 pub(crate) const CATALOG_SCHEMA: u32 = 2;
 
@@ -27,7 +24,6 @@ pub fn collections() -> Vec<CollectionSpec> {
     vec![
         CollectionSpec::new(CATALOG_COLLECTION),
         CollectionSpec::new(BUNDLE_COLLECTION),
-        CollectionSpec::new(MIGRATIONS_COLLECTION),
     ]
 }
 
