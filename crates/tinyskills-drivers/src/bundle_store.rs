@@ -8,9 +8,9 @@ use tinyskills::{
     BundleDocument, BundleFile, BundleFuture, BundleLimits, BundleRevision, BundleStore,
     BundleStoreError, BundleSummary, StoredBundle, UserBundle, is_safe_segment,
 };
-use tinystoragedrivers_core::{
-    BlobStore, DocumentStore, ErrorKind, Key, MAX_ID_LEN, Precondition, Query, StorageError,
-    Version, WriteOptions,
+use tinystoragedrivers_api::{BlobStore, DocumentStore};
+use tinystoragedrivers_types::{
+    ErrorKind, Key, MAX_KEY_LEN, Precondition, Query, StorageError, Version, WriteOptions,
 };
 
 use crate::BUNDLE_GENERATION_PREFIX;
@@ -62,7 +62,7 @@ impl DocumentBundleStore {
     }
 
     fn id(id: &str) -> Result<String, BundleStoreError> {
-        if !is_safe_segment(id) || id.len() > MAX_ID_LEN {
+        if !is_safe_segment(id) || id.len() > MAX_KEY_LEN {
             return Err(BundleStoreError::InvalidId);
         }
         Key::new(id.to_owned())
