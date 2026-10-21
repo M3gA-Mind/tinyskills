@@ -60,8 +60,7 @@ impl From<StorageError> for BlobBundleError {
     }
 }
 
-/// The blob prefix every bundle lives under, declared by
-/// [`storage_schema`](crate::storage_schema).
+/// The blob prefix every bundle lives under, listed by [`crate::blob_prefixes`].
 pub const BUNDLE_PREFIX: &str = "skills/bundles";
 
 /// Disjoint storage for immutable user-bundle generations.

@@ -104,13 +104,13 @@ fn parses_running_and_finished_runs_and_sorts_after_filtering() {
 
 #[test]
 fn parser_skips_malformed_runs_and_terminal_outcome_waits_for_finished_line() {
-    assert!(
+    assert_eq!(
         parse_runs(
             vec![("broken".to_owned(), "not a run".to_owned())],
             None,
             10
-        )
-        .is_empty()
+        ),
+        Vec::<ScannedRun>::new()
     );
     let partial = "==== workflow_run: x ====\nrun_id : x\n\n--- result ---\nstatus  : DONE\n";
     assert!(parse_terminal_outcome(partial).is_none());

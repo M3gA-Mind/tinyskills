@@ -24,11 +24,11 @@ pub enum SkillsStorageError {
     /// A host storage port rejected declaration or migration I/O.
     #[error("skills storage operation failed: {0}")]
     Storage(#[from] StorageError),
-    /// A migration record could not be serialized.
-    #[error("skills migration record could not be serialized: {0}")]
+    /// A catalog could not be serialized during migration.
+    #[error("skills catalog could not be serialized: {0}")]
     Serialization(#[from] serde_json::Error),
     /// A legacy catalog could not be represented without losing data.
-    #[error("a skills catalog migration record conflicts with current storage")]
+    #[error("a legacy skills catalog conflicts with its expected migrated representation")]
     MigrationConflict,
 }
 
@@ -92,13 +92,20 @@ impl SkillsStorage {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct MigrationMarker {
-    version: u32,
-    complete: bool,
-}
-
 async fn migrate_catalogs(documents: &dyn DocumentStore) -> Result<(), SkillsStorageError> {
+    if let Some(row) = documents
+        .get(MIGRATIONS_COLLECTION, CATALOG_MIGRATION_ID)
+        .await?
+    {
+        let marker = serde_json::from_value::<MigrationMarker>(row.doc)
+            .map_err(|_| SkillsStorageError::MigrationConflict)?;
+        // An incomplete receipt is advisory only; the full scan below retries
+        // any rows left behind by the interrupted open.
+        let MigrationMarker { version, .. } = marker;
+        if version != 1 {
+            return Err(SkillsStorageError::MigrationConflict);
+        }
+    }
     let mut query = Query::all().limit(MIGRATION_PAGE_SIZE);
     loop {
         let page = documents.query(CATALOG_V1_COLLECTION, &query).await?;
@@ -111,11 +118,15 @@ async fn migrate_catalogs(documents: &dyn DocumentStore) -> Result<(), SkillsSto
         query = Query::all().limit(MIGRATION_PAGE_SIZE).after(cursor);
     }
 
+    // This receipt records that this owner completed a scan, but deliberately
+    // never suppresses a later scan: a legacy writer may add a row after it.
+    // Per-row destination CAS and source-version deletion make the repeated
+    // scan idempotent without hiding late rows.
     let marker = MigrationMarker {
         version: 1,
-        complete: true,
+        _complete: true,
     };
-    match documents
+    documents
         .put_with(
             MIGRATIONS_COLLECTION,
             CATALOG_MIGRATION_ID,
@@ -123,24 +134,15 @@ async fn migrate_catalogs(documents: &dyn DocumentStore) -> Result<(), SkillsSto
             Precondition::None,
             WriteOptions::new(),
         )
-        .await
-    {
-        Ok(_) => Ok(()),
-        Err(error) if error.kind() == ErrorKind::Conflict => {
-            // A concurrent opener may have recorded the same completed step.
-            let complete = documents
-                .get(MIGRATIONS_COLLECTION, CATALOG_MIGRATION_ID)
-                .await?
-                .and_then(|row| serde_json::from_value::<MigrationMarker>(row.doc).ok())
-                .is_some_and(|marker| marker.version == 1 && marker.complete);
-            if complete {
-                Ok(())
-            } else {
-                Err(SkillsStorageError::MigrationConflict)
-            }
-        }
-        Err(error) => Err(error.into()),
-    }
+        .await?;
+    Ok(())
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MigrationMarker {
+    version: u32,
+    #[serde(rename = "complete")]
+    _complete: bool,
 }
 
 async fn migrate_catalog(
@@ -150,40 +152,42 @@ async fn migrate_catalog(
     if !is_safe_segment(&source.id) {
         return Err(SkillsStorageError::MigrationConflict);
     }
-    let stored = serde_json::from_value::<StoredCatalog>(source.doc.clone()).ok();
-    if let Some(stored) = stored.filter(|stored| stored.format == StoredCatalog::FORMAT) {
-        let body = serde_json::to_value(CatalogBody::from_stored(&stored))?;
-        let options = source.meta.expires_ms.map_or_else(
-            || WriteOptions::new().schema(CATALOG_SCHEMA),
-            |expires| {
-                WriteOptions::new()
-                    .schema(CATALOG_SCHEMA)
-                    .expires_ms(expires)
-            },
-        );
-        match documents
-            .put_with(
-                CATALOG_COLLECTION,
-                &source.id,
-                body,
-                Precondition::Absent,
-                options,
-            )
-            .await
-        {
-            Ok(_) => {}
-            Err(error) if error.kind() == ErrorKind::Conflict => {
-                let current = documents.get(CATALOG_COLLECTION, &source.id).await?;
-                let valid_current = current.is_some_and(|row| {
-                    row.meta.schema == CATALOG_SCHEMA
-                        && serde_json::from_value::<CatalogBody>(row.doc).is_ok()
-                });
-                if !valid_current {
-                    return Err(SkillsStorageError::MigrationConflict);
-                }
-            }
-            Err(error) => return Err(error.into()),
-        }
+    let stored = serde_json::from_value::<StoredCatalog>(source.doc.clone())
+        .map_err(|_| SkillsStorageError::MigrationConflict)?;
+    if stored.format != StoredCatalog::FORMAT || serde_json::to_value(&stored)? != source.doc {
+        return Err(SkillsStorageError::MigrationConflict);
+    }
+    let expected_body = serde_json::to_value(CatalogBody::from_stored(&stored))?;
+    let options = source.meta.expires_ms.map_or_else(
+        || WriteOptions::new().schema(CATALOG_SCHEMA),
+        |expires| {
+            WriteOptions::new()
+                .schema(CATALOG_SCHEMA)
+                .expires_ms(expires)
+        },
+    );
+    match documents
+        .put_with(
+            CATALOG_COLLECTION,
+            &source.id,
+            expected_body.clone(),
+            Precondition::Absent,
+            options,
+        )
+        .await
+    {
+        Ok(_) => {}
+        Err(error) if error.kind() == ErrorKind::Conflict => {}
+        Err(error) => return Err(error.into()),
+    }
+    let current = documents.get(CATALOG_COLLECTION, &source.id).await?;
+    let exact_destination = current.is_some_and(|row| {
+        row.meta.schema == CATALOG_SCHEMA
+            && row.meta.expires_ms == source.meta.expires_ms
+            && row.doc == expected_body
+    });
+    if !exact_destination {
+        return Err(SkillsStorageError::MigrationConflict);
     }
 
     match documents

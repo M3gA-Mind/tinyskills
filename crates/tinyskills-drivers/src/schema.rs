@@ -11,6 +11,10 @@ pub const CATALOG_COLLECTION: &str = "skills.catalogs";
 /// The legacy collection read during the owner migration.
 pub(crate) const CATALOG_V1_COLLECTION: &str = "tinyskills_catalogs";
 
+/// Per-owner receipts for completed skills migrations; this is not a central
+/// registry and never suppresses the legacy-row scan on a later open.
+pub(crate) const MIGRATIONS_COLLECTION: &str = "skills.migrations";
+
 /// The body version of [`CATALOG_COLLECTION`].
 pub(crate) const CATALOG_SCHEMA: u32 = 2;
 
@@ -24,6 +28,7 @@ pub fn collections() -> Vec<CollectionSpec> {
     vec![
         CollectionSpec::new(CATALOG_COLLECTION),
         CollectionSpec::new(BUNDLE_COLLECTION),
+        CollectionSpec::new(MIGRATIONS_COLLECTION),
     ]
 }
 

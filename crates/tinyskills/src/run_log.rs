@@ -147,12 +147,11 @@ fn parse_run(stream_id: &str, text: &str) -> Option<ScannedRun> {
     let mut seen_result = false;
     for line in text.lines() {
         if line.starts_with("==== workflow_run:") {
-            workflow_id = line
-                .trim_start_matches("==== workflow_run:")
+            line.trim_start_matches("==== workflow_run:")
                 .trim()
                 .trim_end_matches('=')
                 .trim()
-                .to_owned();
+                .clone_into(&mut workflow_id);
             continue;
         }
         if line.starts_with(RESULT_MARKER) {
@@ -165,9 +164,9 @@ fn parse_run(stream_id: &str, text: &str) -> Option<ScannedRun> {
         let label = label_raw.trim();
         let value = value_raw.trim();
         match (label, seen_result) {
-            ("run_id", false) => run_id = value.to_owned(),
-            ("started", false) => started = value.to_owned(),
-            ("status", true) => status = value.to_owned(),
+            ("run_id", false) => value.clone_into(&mut run_id),
+            ("started", false) => value.clone_into(&mut started),
+            ("status", true) => value.clone_into(&mut status),
             ("duration", true) => {
                 if let Ok(value) = value.trim_end_matches(" ms").trim().parse::<u64>() {
                     duration_ms = Some(value);
@@ -219,7 +218,7 @@ pub fn parse_terminal_outcome(text: &str) -> Option<RunOutcome> {
             break;
         };
         match label.trim() {
-            "status" => status = value.trim().to_owned(),
+            "status" => value.trim().clone_into(&mut status),
             "finished" => {
                 saw_finished = true;
                 break;

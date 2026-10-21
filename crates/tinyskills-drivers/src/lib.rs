@@ -28,7 +28,7 @@ pub use blob_bundles::{BUNDLE_GENERATION_PREFIX, BUNDLE_PREFIX, BlobBundleError,
 pub use bundle_store::{BUNDLE_COLLECTION, DocumentBundleStore};
 pub use document_store::DocumentCatalogStore;
 pub use run_log::{RunLogStoreError, StreamRunLogStore};
-pub use schema::{CATALOG_COLLECTION, MIGRATIONS_COLLECTION, blob_prefixes, collections};
+pub use schema::{CATALOG_COLLECTION, blob_prefixes, collections};
 pub use storage::{SkillsStorage, SkillsStorageError};
 
 #[cfg(test)]
