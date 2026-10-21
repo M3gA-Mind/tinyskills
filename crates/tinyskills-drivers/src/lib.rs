@@ -26,7 +26,9 @@ mod storage;
 pub use blob_bundles::{BUNDLE_GENERATION_PREFIX, BUNDLE_PREFIX, BlobBundleError, BlobBundles};
 pub use bundle_store::{BUNDLE_COLLECTION, DocumentBundleStore};
 pub use document_store::DocumentCatalogStore;
-pub use schema::{
-    CATALOG_COLLECTION, MIGRATIONS_COLLECTION, blob_prefixes, collections,
-};
+pub use schema::{CATALOG_COLLECTION, MIGRATIONS_COLLECTION, blob_prefixes, collections};
 pub use storage::{SkillsStorage, SkillsStorageError};
+
+#[cfg(test)]
+#[path = "schema_tests.rs"]
+mod schema_tests;

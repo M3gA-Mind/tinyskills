@@ -51,8 +51,9 @@ impl CatalogBody {
 ///
 /// The host picks the backend (`SQLite`, `MongoDB`, memory) and the tenant scope
 /// when it builds the [`DocumentStore`] handle; this store never names either.
-/// The collection is declared by [`storage_schema`](crate::storage_schema)
-/// through the host's `Registry`, never by this store. A document written at
+/// The collection is declared by [`collections`](crate::collections) and
+/// ensured by [`SkillsStorage::open`](crate::SkillsStorage::open), never by
+/// this store. A document written at
 /// another schema version reads as absent, and one that does not decode reads
 /// as [`StoreError::Corrupt`]. A failing backend surfaces as
 /// [`StoreError::Io`], never as an absent catalog.
@@ -79,7 +80,7 @@ impl DocumentCatalogStore {
         if !is_safe_segment(registry) {
             return Err(StoreError::InvalidId(registry.to_owned()));
         }
-        Key::of([registry])
+        Key::new(registry)
             .map(|key| key.as_str().to_owned())
             .map_err(|_| StoreError::InvalidId(registry.to_owned()))
     }

@@ -1,23 +1,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use serde_json::{Value, json};
-use tinystoragedrivers_core::{
-    CollectionSpec, Item, MemoryStorage, MigrateOptions, Precondition, Registry, Scope,
-    ScopedStorage, StorageBackend, WriteOptions,
-};
+use tinystoragedrivers_api::Storage;
+use tinystoragedrivers_testkit::memory_storage;
+use tinystoragedrivers_types::{CollectionSpec, Precondition, Scope, WriteOptions};
 
 use super::*;
-use crate::DocumentCatalogStore;
-use std::sync::Arc;
+use crate::schema::{CATALOG_SCHEMA, CATALOG_V1_COLLECTION};
 use tinyskills::{CatalogStore, Validators};
-
-fn scoped() -> ScopedStorage {
-    MemoryStorage::new().for_scope(&Scope::local()).unwrap()
-}
-
-fn registry() -> Registry {
-    Registry::compose([storage_schema()]).unwrap()
-}
 
 fn v1_body() -> Value {
     json!({
@@ -38,76 +28,61 @@ fn v1_body() -> Value {
     })
 }
 
-async fn seed_v1(storage: &ScopedStorage, id: &str, body: Value, created_ms: i64) {
-    let documents = storage.documents();
-    documents
+async fn storage() -> Storage {
+    memory_storage(&Scope::new("alice").unwrap())
+}
+
+async fn seed_v1(storage: &Storage, id: &str, body: Value) {
+    storage
         .ensure_collection(&CollectionSpec::new(CATALOG_V1_COLLECTION))
         .await
         .unwrap();
-    documents
+    storage
+        .documents()
         .put_with(
             CATALOG_V1_COLLECTION,
             id,
             body,
             Precondition::None,
-            WriteOptions::new().created_ms(created_ms),
+            WriteOptions::new(),
         )
         .await
         .unwrap();
 }
 
 #[test]
-fn schema_declares_the_v2_items_under_the_skills_owner() {
-    let registry = registry();
-    assert_eq!(registry.owners().collect::<Vec<_>>(), ["skills"]);
-    assert_eq!(registry.collection_version(CATALOG_COLLECTION), Some(2));
-    assert_eq!(CATALOG_COLLECTION, "skills.catalogs");
-    let schema = storage_schema();
-    let names: Vec<_> = schema.items.iter().map(Item::name).collect();
+fn declarations_are_pure_and_name_only_the_skills_owner() {
+    let names: Vec<_> = collections().into_iter().map(|spec| spec.name).collect();
     assert_eq!(
         names,
-        [
-            "skills.catalogs",
-            "skills.bundles",
-            "skills/bundles",
-            "skills/bundle-generations",
-        ]
+        [CATALOG_COLLECTION, BUNDLE_COLLECTION, MIGRATIONS_COLLECTION]
     );
-    assert!(
-        schema
-            .items
-            .iter()
-            .all(|item| item.scope() == ScopeClass::Tenant)
-    );
+    assert_eq!(blob_prefixes(), [BUNDLE_PREFIX, BUNDLE_GENERATION_PREFIX]);
+    assert_eq!(CATALOG_COLLECTION, "skills.catalogs");
+    assert_eq!(CATALOG_SCHEMA, 2);
 }
 
 #[tokio::test]
-async fn catalog_step_rewrites_a_v1_row_into_the_v2_body() {
-    let storage = scoped();
-    seed_v1(&storage, "example", v1_body(), 7).await;
-    let registry = registry();
-    assert!(registry.check_ready(CATALOG_COLLECTION).is_err());
+async fn owner_open_ensures_collections_and_migrates_legacy_catalogs() {
+    let storage = storage().await;
+    seed_v1(&storage, "example", v1_body()).await;
 
-    registry
-        .migrate(&storage, &MigrateOptions::new())
-        .await
-        .unwrap();
-    registry.check_ready(CATALOG_COLLECTION).unwrap();
+    let owner = SkillsStorage::open(storage.clone()).await.unwrap();
+    let loaded = owner.catalogs().load("example").await.unwrap().unwrap();
+    assert_eq!(loaded.fetched_at, 42);
+    assert_eq!(loaded.skipped, 3);
+    assert_eq!(loaded.entries.len(), 1);
+    assert_eq!(loaded.validators.etag.as_deref(), Some("\"e\""));
 
-    let found = storage
+    let current = storage
         .documents()
         .get(CATALOG_COLLECTION, "example")
         .await
         .unwrap()
         .unwrap();
-    let mut expected = v1_body();
-    let object = expected.as_object_mut().unwrap();
-    object.remove("format");
-    object.remove("fetched_at");
-    object.insert("fetched_ms".to_owned(), json!(42_000));
-    assert_eq!(found.doc, expected);
-    assert_eq!(found.meta.schema, 2);
-    assert_eq!(found.meta.created_ms, 7);
+    assert_eq!(current.meta.schema, CATALOG_SCHEMA);
+    assert_eq!(current.doc["fetched_ms"], json!(42_000));
+    assert!(current.doc.get("format").is_none());
     assert!(
         storage
             .documents()
@@ -116,88 +91,71 @@ async fn catalog_step_rewrites_a_v1_row_into_the_v2_body() {
             .unwrap()
             .is_none()
     );
+    for spec in collections() {
+        storage
+            .documents()
+            .validate_collection_spec(&spec)
+            .await
+            .unwrap();
+    }
 }
 
 #[tokio::test]
-async fn catalog_step_drops_rows_that_do_not_read_as_a_catalog() {
-    let storage = scoped();
-    seed_v1(&storage, "future", json!({"format": 9, "entries": []}), 1).await;
-    seed_v1(&storage, "broken", json!({"format": 1, "entries": "x"}), 1).await;
-    seed_v1(&storage, "good", v1_body(), 1).await;
+async fn owner_open_is_idempotent_and_drops_unreadable_legacy_cache_rows() {
+    let storage = storage().await;
+    seed_v1(&storage, "future", json!({"format": 9, "entries": []})).await;
+    seed_v1(&storage, "broken", json!({"format": 1, "entries": "x"})).await;
+    seed_v1(&storage, "good", v1_body()).await;
 
-    registry()
-        .migrate(&storage, &MigrateOptions::new())
-        .await
-        .unwrap();
-
-    let documents = storage.documents();
-    assert!(
-        documents
-            .get(CATALOG_COLLECTION, "future")
-            .await
-            .unwrap()
-            .is_none()
-    );
-    assert!(
-        documents
-            .get(CATALOG_COLLECTION, "broken")
-            .await
-            .unwrap()
-            .is_none()
-    );
-    assert!(
-        documents
-            .get(CATALOG_COLLECTION, "good")
-            .await
-            .unwrap()
-            .is_some()
-    );
-}
-
-#[tokio::test]
-async fn migration_is_idempotent() {
-    let storage = scoped();
-    seed_v1(&storage, "example", v1_body(), 7).await;
-    let registry = registry();
-    registry
-        .migrate(&storage, &MigrateOptions::new())
-        .await
-        .unwrap();
-    let first = storage
+    let first = SkillsStorage::open(storage.clone()).await.unwrap();
+    let saved = storage
         .documents()
-        .get(CATALOG_COLLECTION, "example")
+        .get(CATALOG_COLLECTION, "good")
         .await
         .unwrap();
-    let report = registry
-        .migrate(&storage, &MigrateOptions::new())
-        .await
-        .unwrap();
-    assert_eq!(report.ran.len(), 0);
+    let second = SkillsStorage::open(storage.clone()).await.unwrap();
     assert_eq!(
         storage
             .documents()
-            .get(CATALOG_COLLECTION, "example")
+            .get(CATALOG_COLLECTION, "good")
             .await
             .unwrap(),
-        first
+        saved
     );
+    assert_eq!(
+        first.catalogs().load("good").await.unwrap(),
+        second.catalogs().load("good").await.unwrap()
+    );
+    for id in ["future", "broken"] {
+        assert!(
+            storage
+                .documents()
+                .get(CATALOG_COLLECTION, id)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            storage
+                .documents()
+                .get(CATALOG_V1_COLLECTION, id)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
 }
 
 #[tokio::test]
-async fn a_migrated_row_loads_through_the_catalog_store() {
-    let storage = scoped();
-    seed_v1(&storage, "example", v1_body(), 7).await;
-    registry()
-        .migrate(&storage, &MigrateOptions::new())
-        .await
-        .unwrap();
-
-    let store = DocumentCatalogStore::new(Arc::clone(storage.documents()));
-    let loaded = store.load("example").await.unwrap().unwrap();
-    assert_eq!(loaded.fetched_at, 42);
-    assert_eq!(loaded.skipped, 3);
-    assert_eq!(loaded.entries.len(), 1);
+async fn current_catalog_store_still_round_trips_after_owner_open() {
+    let storage = storage().await;
+    let owner = SkillsStorage::open(storage).await.unwrap();
     let mut validators = Validators::default();
-    validators.etag = Some("\"e\"".to_owned());
-    assert_eq!(loaded.validators, validators);
+    validators.etag = Some("etag".to_owned());
+    let catalog = tinyskills::StoredCatalog::new(Vec::new(), 42, validators, 3);
+    owner.catalogs().save("registry", &catalog).await.unwrap();
+    assert_eq!(
+        owner.catalogs().load("registry").await.unwrap(),
+        Some(catalog)
+    );
 }

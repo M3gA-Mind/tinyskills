@@ -5,9 +5,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use tinyskills::{StoredCatalog, is_safe_segment};
 use tinystoragedrivers_api::{DocumentStore, Storage};
-use tinystoragedrivers_types::{
-    CollectionSpec, ErrorKind, Precondition, Query, StorageError, WriteOptions,
-};
+use tinystoragedrivers_types::{ErrorKind, Precondition, Query, StorageError, WriteOptions};
 
 use crate::blob_bundles::BlobBundles;
 use crate::bundle_store::DocumentBundleStore;
@@ -25,6 +23,9 @@ pub enum SkillsStorageError {
     /// A host storage port rejected declaration or migration I/O.
     #[error("skills storage operation failed: {0}")]
     Storage(#[from] StorageError),
+    /// A migration record could not be serialized.
+    #[error("skills migration record could not be serialized: {0}")]
+    Serialization(#[from] serde_json::Error),
     /// A legacy catalog could not be represented without losing data.
     #[error("a skills catalog migration record conflicts with current storage")]
     MigrationConflict,
@@ -143,14 +144,14 @@ async fn migrate_catalog(
     let stored = serde_json::from_value::<StoredCatalog>(source.doc.clone()).ok();
     if let Some(stored) = stored.filter(|stored| stored.format == StoredCatalog::FORMAT) {
         let body = serde_json::to_value(CatalogBody::from_stored(&stored))?;
-        let options = source
-            .meta
-            .expires_ms
-            .map_or_else(|| WriteOptions::new().schema(CATALOG_SCHEMA), |expires| {
+        let options = source.meta.expires_ms.map_or_else(
+            || WriteOptions::new().schema(CATALOG_SCHEMA),
+            |expires| {
                 WriteOptions::new()
                     .schema(CATALOG_SCHEMA)
                     .expires_ms(expires)
-            });
+            },
+        );
         match documents
             .put_with(
                 CATALOG_COLLECTION,
@@ -189,4 +190,3 @@ async fn migrate_catalog(
         Err(error) => Err(error.into()),
     }
 }
-

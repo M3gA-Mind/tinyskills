@@ -1,5 +1,6 @@
 use super::*;
 use crate::BlobBundles;
+use crate::SkillsStorage;
 use async_trait::async_trait;
 use std::{
     ops::Range,
@@ -8,10 +9,9 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
-use tinystoragedrivers_core::{
-    Blob, BlobMeta, BlobStore, Capabilities, MemoryStorage, Registry, Scope, StorageBackend,
-    StorageError,
-};
+use tinystoragedrivers_api::{BlobStore, DocumentStore, Storage};
+use tinystoragedrivers_testkit::{Failing, FaultPlan, memory_storage};
+use tinystoragedrivers_types::{Blob, BlobMeta, Capabilities, Scope, StorageError};
 use tokio::sync::Notify;
 
 #[derive(Debug, Default)]
@@ -24,10 +24,8 @@ struct ReadGate {
 #[derive(Debug)]
 struct GatedBlobs {
     inner: Arc<dyn BlobStore>,
+    failing: Failing<dyn BlobStore>,
     gate: Arc<ReadGate>,
-    fail_get: bool,
-    fail_put: bool,
-    fail_list: bool,
 }
 
 #[async_trait]
@@ -38,65 +36,58 @@ impl BlobStore for GatedBlobs {
         bytes: Vec<u8>,
         content_type: Option<&str>,
     ) -> Result<BlobMeta, StorageError> {
-        if self.fail_put {
-            return Err(StorageError::backend("injected blob write failure"));
-        }
-        self.inner.put(key, bytes, content_type).await
+        self.failing
+            .call("put", self.inner.put(key, bytes, content_type))
+            .await
     }
     async fn get(&self, key: &str) -> Result<Option<Blob>, StorageError> {
-        if self.fail_get {
-            return Err(StorageError::backend("injected blob read failure"));
-        }
         if key.starts_with("skills/bundle-generations/demo/")
             && self.gate.armed.swap(false, Ordering::SeqCst)
         {
             self.gate.started.notify_one();
             self.gate.release.notified().await;
         }
-        self.inner.get(key).await
+        self.failing.call("get", self.inner.get(key)).await
     }
     async fn get_range(
         &self,
         key: &str,
         range: Range<u64>,
     ) -> Result<Option<Vec<u8>>, StorageError> {
-        self.inner.get_range(key, range).await
+        self.failing
+            .call("get_range", self.inner.get_range(key, range))
+            .await
     }
     async fn head(&self, key: &str) -> Result<Option<BlobMeta>, StorageError> {
-        self.inner.head(key).await
+        self.failing.call("head", self.inner.head(key)).await
     }
     async fn delete(&self, key: &str) -> Result<bool, StorageError> {
-        self.inner.delete(key).await
+        self.failing.call("delete", self.inner.delete(key)).await
     }
     async fn list(&self, prefix: &str) -> Result<Vec<BlobMeta>, StorageError> {
-        if self.fail_list {
-            return Err(StorageError::backend("injected blob list failure"));
-        }
-        self.inner.list(prefix).await
+        self.failing.call("list", self.inner.list(prefix)).await
     }
     fn capabilities(&self) -> Capabilities {
         self.inner.capabilities()
     }
+
+    fn max_key_len(&self) -> usize {
+        self.inner.max_key_len()
+    }
 }
 
-async fn prepared() -> MemoryStorage {
-    let storage = MemoryStorage::new();
-    Registry::compose([crate::storage_schema()])
-        .unwrap()
-        .prepare(&storage)
-        .await
-        .unwrap();
+async fn prepared() -> Storage {
+    let storage = memory_storage(&Scope::new("alice").unwrap());
+    SkillsStorage::open(storage.clone()).await.unwrap();
     storage
 }
 
-fn store(storage: &MemoryStorage, scope: &str) -> DocumentBundleStore {
-    let scoped = storage.for_scope(&Scope::new(scope).unwrap()).unwrap();
-    DocumentBundleStore::new(Arc::clone(scoped.documents()), Arc::clone(scoped.blobs()))
+fn store(storage: &Storage, _scope: &str) -> DocumentBundleStore {
+    DocumentBundleStore::new(Arc::clone(storage.documents()), Arc::clone(storage.blobs()))
 }
 
-fn parts(storage: &MemoryStorage) -> (Arc<dyn DocumentStore>, Arc<dyn BlobStore>) {
-    let scoped = storage.for_scope(&Scope::new("alice").unwrap()).unwrap();
-    (Arc::clone(scoped.documents()), Arc::clone(scoped.blobs()))
+fn parts(storage: &Storage) -> (Arc<dyn DocumentStore>, Arc<dyn BlobStore>) {
+    (Arc::clone(storage.documents()), Arc::clone(storage.blobs()))
 }
 
 async fn put_head(documents: &dyn DocumentStore, id: &str, head: serde_json::Value) {
@@ -112,35 +103,41 @@ async fn put_head(documents: &dyn DocumentStore, id: &str, head: serde_json::Val
         .unwrap();
 }
 
-fn store_with_gate(storage: &MemoryStorage, gate: Arc<ReadGate>) -> DocumentBundleStore {
-    let scoped = storage.for_scope(&Scope::new("alice").unwrap()).unwrap();
+fn store_with_gate(storage: &Storage, gate: Arc<ReadGate>) -> DocumentBundleStore {
+    let inner = Arc::clone(storage.blobs());
     DocumentBundleStore::new(
-        Arc::clone(scoped.documents()),
+        Arc::clone(storage.documents()),
         Arc::new(GatedBlobs {
-            inner: Arc::clone(scoped.blobs()),
+            failing: Failing::new(Arc::clone(&inner)),
+            inner,
             gate,
-            fail_get: false,
-            fail_put: false,
-            fail_list: false,
         }),
     )
 }
 
 fn store_with_blob_fault(
-    storage: &MemoryStorage,
+    storage: &Storage,
     fail_get: bool,
     fail_put: bool,
     fail_list: bool,
 ) -> DocumentBundleStore {
-    let scoped = storage.for_scope(&Scope::new("alice").unwrap()).unwrap();
+    let inner = Arc::clone(storage.blobs());
+    let faults = FaultPlan::new();
+    if fail_get {
+        faults.fail_operation_nth("get", 1, tinystoragedrivers_types::ErrorKind::Backend);
+    }
+    if fail_put {
+        faults.fail_operation_nth("put", 1, tinystoragedrivers_types::ErrorKind::Backend);
+    }
+    if fail_list {
+        faults.fail_operation_nth("list", 1, tinystoragedrivers_types::ErrorKind::Backend);
+    }
     DocumentBundleStore::new(
-        Arc::clone(scoped.documents()),
+        Arc::clone(storage.documents()),
         Arc::new(GatedBlobs {
-            inner: Arc::clone(scoped.blobs()),
+            failing: Failing::with_plan(Arc::clone(&inner), faults),
+            inner,
             gate: Arc::new(ReadGate::default()),
-            fail_get,
-            fail_put,
-            fail_list,
         }),
     )
 }
@@ -410,8 +407,7 @@ async fn content_generations_are_reused_only_for_identical_bytes() {
     );
     let file = &content.files()[0];
     let key = format!("{BUNDLE_GENERATION_PREFIX}/demo/{generation}/{}", file.path);
-    let scoped = storage.for_scope(&Scope::new("alice").unwrap()).unwrap();
-    scoped
+    storage
         .blobs()
         .put(&key, b"different".to_vec(), None)
         .await
@@ -428,8 +424,7 @@ async fn publication_refuses_unexpected_blobs_in_its_generation_prefix() {
     let store = store(&storage, "alice");
     let content = content("known");
     let generation = format!("1-{}", content.digest());
-    let scoped = storage.for_scope(&Scope::new("alice").unwrap()).unwrap();
-    scoped
+    storage
         .blobs()
         .put(
             &format!("{BUNDLE_GENERATION_PREFIX}/demo/{generation}/rogue.bin"),
@@ -449,8 +444,7 @@ async fn publication_refuses_unexpected_blobs_in_its_generation_prefix() {
 async fn immutable_generations_survive_legacy_bundle_replacement_and_delete() {
     let storage = prepared().await;
     let store = store(&storage, "alice");
-    let scoped = storage.for_scope(&Scope::new("alice").unwrap()).unwrap();
-    let legacy = BlobBundles::new(Arc::clone(scoped.blobs()));
+    let legacy = BlobBundles::new(Arc::clone(storage.blobs()));
     store
         .publish("demo", None, &content("committed"))
         .await
