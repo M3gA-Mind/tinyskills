@@ -1,18 +1,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use cap_std::ambient_authority;
-use tinystoragedrivers_core::{MemoryStorage, Scope, StorageBackend};
+use tinystoragedrivers_testkit::memory_storage;
+use tinystoragedrivers_types::Scope;
 
 use super::*;
 
 fn blobs(scope: &str) -> Arc<dyn BlobStore> {
-    let storage = MemoryStorage::new();
-    Arc::clone(
-        storage
-            .for_scope(&Scope::new(scope).unwrap())
-            .unwrap()
-            .blobs(),
-    )
+    let storage = memory_storage(&Scope::new(scope).unwrap());
+    Arc::clone(storage.blobs())
 }
 
 fn bundles() -> BlobBundles {
@@ -209,7 +205,7 @@ async fn materialize_reports_directory_name_errors() {
 #[test]
 fn storage_errors_become_backend_errors() {
     let error = BlobBundleError::from(StorageError::new(
-        tinystoragedrivers_core::ErrorKind::Backend,
+        tinystoragedrivers_types::ErrorKind::Backend,
         "down",
     ));
     assert!(matches!(error, BlobBundleError::Backend(_)));

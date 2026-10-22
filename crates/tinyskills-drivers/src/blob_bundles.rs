@@ -11,7 +11,8 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use cap_std::fs::Dir;
-use tinystoragedrivers_core::{BlobStore, StorageError, TreeEntry, TreeFile};
+use tinystoragedrivers_api::BlobStore;
+use tinystoragedrivers_types::{StorageError, TreeEntry, TreeFile};
 
 use tinyskills::{
     MAX_MATERIALIZE_DEPTH, MAX_MATERIALIZE_FILE_BYTES, MaterializeEntry, MaterializeError,
@@ -59,8 +60,7 @@ impl From<StorageError> for BlobBundleError {
     }
 }
 
-/// The blob prefix every bundle lives under, declared by
-/// [`storage_schema`](crate::storage_schema).
+/// The blob prefix every bundle lives under, listed by [`crate::blob_prefixes`].
 pub const BUNDLE_PREFIX: &str = "skills/bundles";
 
 /// Disjoint storage for immutable user-bundle generations.
